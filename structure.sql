@@ -6,7 +6,7 @@ CREATE TABLE servers (
     protocol VARCHAR(8) NOT NULL,
     game_info VARCHAR(255) NOT NULL,
     world_hash VARCHAR(255) NULL,
-    description VARCHAR(255) NOT NULL,
+    description VARCHAR(255) NULL,
     has_advert_groups BOOLEAN DEFAULT 0,
     when_updated TIMESTAMP DEFAULT NOW() ON UPDATE NOW(),
     UNIQUE(host, port)
