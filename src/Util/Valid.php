@@ -26,7 +26,7 @@ class Valid
 {
   public static function serverHostname(string $hostname): bool
   {
-    return preg_match('^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$', $hostname) === 1;
+    return strlen($hostname) > 0 && preg_match('/^([A-Za-z0-9\-]+\.)+[A-Za-z]{2,}$/', $hostname) === 1;
   }
 
   // Must be a number between 1 and 65535 inclusive
@@ -43,10 +43,10 @@ class Valid
     }
   }
 
-  // Protocol is an 8 character string with 4 alpha and 4 numeric characters
+  // Protocol is an 8 character string with 4 uppercase alpha and 4 numeric characters
   public static function serverProtocol(string $protocol): bool
   {
-    return preg_match('^[A-Za-z]{4}[0-9]{4}$', $protocol) === 1;
+    return preg_match('/^[A-Z]{4}[0-9]{4}$/', $protocol) === 1;
   }
 
   // Must be a hexadecimal value with no whitespace
