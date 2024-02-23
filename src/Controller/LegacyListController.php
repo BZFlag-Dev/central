@@ -91,7 +91,15 @@ class LegacyListController
 
   private function list(App $app, Request $request, Response $response, PDO $pdo, array $data): Response
   {
-    $sta = $pdo->query("SELECT id, host, port, protocol, game_info, description, has_advert_groups FROM servers");
+    $sql = 'SELECT id, host, port, protocol, game_info, description, has_advert_groups FROM servers';
+    if (isset($data['version'])) {
+      $sql .= ' WHERE protocol = :protocol';
+    }
+    $sta = $pdo->prepare($sql);
+    if (isset($data['version'])) {
+      $sta->bindValue('protocol', $data['version']);
+    }
+    $sta->execute();
     $body = $response->getBody();
     $body->write($this->authenticate_player($app, $pdo, $data));
     while($row = $sta->fetch()) {
