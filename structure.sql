@@ -1,6 +1,6 @@
 
 CREATE TABLE servers (
-    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     host VARCHAR(255) NOT NULL,
     port SMALLINT UNSIGNED NOT NULL,
     protocol VARCHAR(8) NOT NULL,
@@ -16,7 +16,7 @@ CREATE INDEX idx_servers_protocol ON servers (protocol);
 CREATE INDEX idx_servers_when_updated ON servers (when_updated);
 
 CREATE TABLE server_advert_groups (
-    server_id BIGINT UNSIGNED,
+    server_id INT UNSIGNED,
     group_id MEDIUMINT,
     PRIMARY KEY (server_id, group_id)
 );
@@ -24,7 +24,7 @@ CREATE TABLE server_advert_groups (
 CREATE INDEX idx_server_advert_groups_server_id ON server_advert_groups (server_id);
 
 CREATE TABLE hosting_keys (
-    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     key_string VARCHAR(255) NOT NULL,
     host VARCHAR(255) NOT NULL,
     user_name VARCHAR(255) NOT NULL,
