@@ -83,7 +83,8 @@ class LegacyListController
         $statement->execute();
         return "TOKEN: $token\n";
       } catch (RandomException|\PDOException $e) {
-        return "NOTOK: Failed to generate token... {$e->getMessage()}\n";
+        // TODO: Log failure
+        return "NOTOK: Failed to generate token...\n";
       }
     }
   }
@@ -103,7 +104,9 @@ class LegacyListController
 
   private function get_token(App $app, Request $request, Response $response, PDO $pdo, array $data): Response
   {
-
+    $response->getBody()->write($this->authenticate_player($app, $pdo, $data));
+    return $response
+      ->withHeader('Content-Type', 'text/plain');
   }
 
   private function add_server(App $app, Request $request, Response $response, PDO $pdo, array $data): Response
