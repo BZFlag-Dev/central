@@ -23,6 +23,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Util\PHPBBIntegration;
+use App\Util\Valid;
 use PDO;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -107,7 +108,102 @@ class LegacyListController
 
   private function add_server(App $app, Request $request, Response $response, PDO $pdo, array $data): Response
   {
+    // Validate the provided values
+    $errors = [];
 
+    // Name/port
+    $hostname = '';
+    $port = '5154';
+    if (empty($data['nameport'])) {
+      $errors[] = 'Missing public address.';
+    } else {
+      $colonPos = strrpos($data['nameport'], ':');
+      // If there isn't a port in the public address, assume it's just a hostname
+      if ($colonPos === false) {
+        $hostname = $data['nameport'];
+      } else {
+        $hostname = substr($data['nameport'], 0, $colonPos);
+        $port = substr($data['nameport'], $colonPos + 1);
+      }
+
+      // Validate the provided values
+      if (!Valid::serverHostname($hostname)) {
+        $errors[] = 'Invalid hostname in public address.';
+      }
+      if (!Valid::serverPort($port)) {
+        $errors[] = 'Invalid port in public address.';
+      }
+    }
+
+    // Protocol version
+    if (empty($data['version']) || !Valid::serverProtocol($data['version'])) {
+      $errors[] = 'Missing or invalid protocol version.';
+    }
+
+    // Game information
+    if (empty($data['gameinfo']) || !Valid::serverGameInfo($data['gameinfo'])) {
+      $errors[] = 'Missing or invalid game info.';
+    }
+
+    // Server description (optional, so only check if not empty)
+    if (empty($data['title'])) {
+      $data['title'] = '';
+    }
+    else if (!Valid::serverDescription($data['title'])) {
+      $errors[] = 'Missing or invalid server description.';
+    }
+
+    // Tokens to check
+
+    // Groups to check
+
+    // Server hosting key (not required for protocol versions 'BZFS0026' [2.0] or 'BZFS1910' [1.10])
+
+
+    // Check if the provided server token allows manipulating this hostname
+
+    // Check if there were any errors
+    if (!empty($errors)) {
+      $response->getBody()->write('ERROR: '.implode(' ', $errors));
+      return $response
+        ->withHeader('Content-Type', 'text/plain');
+    }
+    else {
+      // Check if the server already exists
+      $sta = $pdo->prepare("SELECT id FROM servers WHERE host = :host AND port = :port LIMIT 1");
+      $sta->bindValue('host', $hostname);
+      $sta->bindValue('port', $port, PDO::PARAM_INT);
+      $sta->execute();
+
+      // If this server already exists, update it
+      // TODO: Only allow updating if the same hosting key is used?
+      if ($sta->rowCount() === 1) {
+        $existing = $sta->fetch(PDO::FETCH_ASSOC);
+
+        $sta = $pdo->prepare("UPDATE servers SET protocol = :protocol, game_info = :game_info, description = :description, has_advert_groups = :has_advert_groups WHERE id = :id");
+        $sta->bindValue('id', $existing['id'], PDO::PARAM_INT);
+        $sta->bindValue('protocol', $data['version']);
+        $sta->bindValue('game_info', $data['gameinfo']);
+        $sta->bindValue('description', $data['title']);
+        $sta->bindValue('has_advert_groups', 0);
+        $sta->execute();
+      }
+      // Otherwise, insert a new server entry
+      else {
+        $sta = $pdo->prepare("INSERT INTO servers (host, port, protocol, game_info, description, has_advert_groups) VALUES (:host, :port, :protocol, :game_info, :description, :has_advert_groups)");
+        $sta->bindValue('host', $hostname);
+        $sta->bindValue('port', $port, PDO::PARAM_INT);
+        $sta->bindValue('protocol', $data['version']);
+        $sta->bindValue('game_info', $data['gameinfo']);
+        $sta->bindValue('description', $data['title']);
+        $sta->bindValue('has_advert_groups', 0);
+        $sta->execute();
+      }
+
+      $response->getBody()->write("ADD: $hostname:$port");
+      return $response
+        ->withHeader('Content-Type', 'text/plain');
+    }
   }
 
   private function remove_server(App $app, Request $request, Response $response, PDO $pdo, array $data): Response
