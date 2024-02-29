@@ -61,7 +61,6 @@ class PHPBBIntegration
     //include($phpbb_root_path.'includes/functions_compatibility.'.$phpEx);
     $this->passwords_manager = $phpbb_container->get('passwords.manager');
     include($phpbb_root_path.'includes/utf/utf_tools.'.$phpEx);
-
   }
 
   public function authenticate_player(string $callsign, string $password): array
@@ -155,5 +154,40 @@ class PHPBBIntegration
     return [
       'error' => 'Invalid username or password'
     ];
+  }
+
+  public function get_user_id_by_username(string $username): int|null
+  {
+    // Clean up UTF-8 characters
+    $username_clean = utf8_clean_string($username);
+
+    // Try to get user information for this user
+    try {
+      $statement = $this->pdo->prepare("SELECT user_id FROM {$this->phpbb_database}.{$this->phpbb_prefix}users WHERE username_clean = :username_clean AND user_inactive_reason = 0");
+      $statement->bindParam('username_clean', $username_clean);
+      $statement->execute();
+      $user = $statement->fetch();
+      return $user['user_id'];
+    } catch(PDOException) {
+      // TODO: Log errors
+    }
+
+    return null;
+  }
+
+  public function get_username_by_user_id(int $user_id): string|null
+  {
+    // Try to get user information for this user
+    try {
+      $statement = $this->pdo->prepare("SELECT username_clean FROM {$this->phpbb_database}.{$this->phpbb_prefix}users WHERE user_id = :user_id AND user_inactive_reason = 0");
+      $statement->bindParam('user_id', $user_id);
+      $statement->execute();
+      $user = $statement->fetch();
+      return $user['username_clean'];
+    } catch(PDOException) {
+      // TODO: Log errors
+    }
+
+    return null;
   }
 }

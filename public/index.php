@@ -36,7 +36,12 @@ $container->set(Configuration::class, function (): Configuration {
   // Define configuration schema
   $config = new Configuration([
     'debug' => Expect::bool(false),
+    // Hostname that, when used, triggers the legacy bzfls2 compatible interface
     'legacy_host' => Expect::string()->required(),
+    // If a server has not been updated recently, it will be purged. Value in seconds.
+    'server_stale_time' => Expect::int(1830),
+    // Player authentication tokens are valid for a limited number of seconds
+    'token_lifetime' => Expect::int(300),
     'login' => Expect::structure([
       'max_failed_attempts' => Expect::int(5),
       'attempt_duration' => Expect::int(300),
@@ -96,6 +101,8 @@ $config = $app->getContainer()->get(Configuration::class);
 // Set up error handling
 // TODO: Logging errors to a file
 $errorMiddleware = $app->addErrorMiddleware($config->get('debug'), true, true);
+
+// TODO: Delete expired authentication tokens and stale servers
 
 // Second generation server list compatability
 if ($_SERVER['SERVER_NAME'] === $config->get('legacy_host')) {
