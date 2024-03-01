@@ -133,16 +133,16 @@ class PHPBBIntegration
       else {
         try {
           // Set a redis value with the maximum failed attempts, if it doesn't exist
-          if ($redis->setnx($key_login_attempts, $this->login_config['max_failed_attempts'])) {
+          if ($this->redis->setnx($key_login_attempts, $this->login_config['max_failed_attempts'])) {
             // Set the key to expire after the attempt duration expires
-            $redis->expire($key_login_attempts, $this->login_config['attempt_duration']);
+            $this->redis->expire($key_login_attempts, $this->login_config['attempt_duration']);
           }
           // Decrement the attempts remaining
-          $redis->decr($key_login_attempts);
+          $this->redis->decr($key_login_attempts);
           // If we've run out of attempts, lock the user out
-          if ($redis->get($key_login_attempts) <= 0) {
-            if ($redis->setnx($key_lockout, 1)) {
-              $redis->expire($key_lockout, $this->login_config['lockout_duration']);
+          if ($this->redis->get($key_login_attempts) <= 0) {
+            if ($this->redis->setnx($key_lockout, 1)) {
+              $this->redis->expire($key_lockout, $this->login_config['lockout_duration']);
             }
           }
         } catch (\RedisException) {
