@@ -25,6 +25,7 @@ namespace App\Controller;
 use App\Util\PHPBBIntegration;
 use App\Util\Valid;
 use League\Config\Configuration;
+use Monolog\Logger;
 use PDO;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -35,7 +36,7 @@ class LegacyListController
 {
   private int $token_lifetime;
 
-  public function __construct(private readonly App $app, private readonly PDO $pdo, readonly Configuration $config)
+  public function __construct(private readonly App $app, private readonly PDO $pdo, readonly Configuration $config, readonly Logger $logger)
   {
     $this->token_lifetime = $config->get('token_lifetime');
   }
@@ -71,11 +72,15 @@ class LegacyListController
 
     $phpbb = $this->app->getContainer()->get(PHPBBIntegration::class);
 
-    $data = $phpbb->authenticate_player($data['callsign'], $data['password']);
+    $authentication_attempt = $phpbb->authenticate_player($data['callsign'], $data['password']);
 
     // If the authentication failed, throw a NOTOK back
-    if (!empty($data['error'])) {
-      return "NOTOK: {$data['error']}\n";
+    if (!empty($authentication_attempt['error'])) {
+      $this->logger->warning('Authentication failed', [
+        'callsign' => $data['callsign'],
+        'error' => $authentication_attempt['error']
+      ]);
+      return "NOTOK: {$authentication_attempt['error']}\n";
     }
     // Otherwise, let's generate, store, and return a token
     else {
@@ -86,13 +91,13 @@ class LegacyListController
         $token = bin2hex(random_bytes(10));
         // TODO: Save the server host/port if provided
         $statement = $this->pdo->prepare('INSERT INTO auth_tokens (user_id, token, player_ipv4) VALUES (:user_id, :token, :player_ipv4)');
-        $statement->bindParam('user_id', $data['bzid'], PDO::PARAM_INT);
+        $statement->bindParam('user_id', $authentication_attempt['bzid'], PDO::PARAM_INT);
         $statement->bindParam('token', $token);
         $statement->bindParam('player_ipv4', $_SERVER['REMOTE_ADDR']);
         $statement->execute();
         return "TOKEN: $token\n";
       } catch (RandomException|\PDOException $e) {
-        // TODO: Log failure
+        $this->logger->error('Failed to generate authentication token', ['error' => $e->getMessage()]);
         return "NOTOK: Failed to generate token...\n";
       }
     }
@@ -125,7 +130,7 @@ class LegacyListController
 
     // Function to split string on CRLF separators and remove empty values
     $split_without_empty = function ($string) {
-      return array_filter(explode("\r\n", $string), function ($v) { return !empty($v); });
+      return array_filter(explode(["\r\n", "\n"], $string), function ($v) { return !empty($v); });
     };
 
     // Take the horrible group list and split it out into an array of groups, removing any empty values
@@ -135,14 +140,14 @@ class LegacyListController
     foreach($split_without_empty($data['checktokens']) as $checktoken) {
       list($callsign, $remaining) = explode('@', $checktoken);
       if ($remaining) {
-        list($player_ipv4, $token) = explode('=', $remaining);
+        list($player_ipv4, $token_string) = explode('=', $remaining);
       } else {
         $ip = null;
-        list(, $token) = explode('=', $checktoken);
+        list(, $token_string) = explode('=', $checktoken);
       }
 
       // If we have both a callsign and a token, process it
-      if (!empty($callsign) && !empty($token)) {
+      if (!empty($callsign) && !empty($token_string)) {
         // Try to fetch the user ID for this user
         $user_id = $phpbb->get_user_id_by_username($callsign);
 
@@ -155,12 +160,13 @@ class LegacyListController
         try {
           $statement = $this->pdo->prepare($sql = 'SELECT player_ipv4, server_host, server_port FROM auth_tokens WHERE user_id = :user_id AND token = :token AND TIMESTAMPDIFF(SECOND, when_created, NOW()) < :token_lifetime');
           $statement->bindValue('user_id', $user_id, PDO::PARAM_INT);
-          $statement->bindValue('token', $token);
+          $statement->bindValue('token', $token_string);
           $statement->bindValue('token_lifetime', $this->token_lifetime, PDO::PARAM_INT);
           $statement->execute();
           $token = $statement->fetch();
 
           if (!$token) {
+            $this->logger->error('Authentication token not found', ['token' => $token_string]);
             $return .= "TOKBAD: $callsign\n";
             continue;
           }
@@ -169,20 +175,29 @@ class LegacyListController
           // work in situations where the player IP exposed to the list and the game server differ, such as CGNAT or
           // dual-stack IPv4/6 networks.
           if (!empty($token['server_host']) && !empty($server_host) && !($token['server_host'] === $server_host && $token['server_port'] === $server_port)) {
-            // TODO: Log mismatch
+            $this->logger->error('Authentication token server host or port mismatch', [
+              'token_host' => $token['server_host'],
+              'actual_host' => $server_host,
+              'token_port' => $token['server_port'],
+              'actual_port' => $server_port
+            ]);
             $return .= "TOKBAD: $callsign\n";
             continue;
           }
           // Otherwise, use the old IPv4 comparison check if the token has one
+          // TODO: Should auth fail here if the token does not have an IP saved?
           elseif (!empty($token['player_ipv4']) && $token['player_ipv4'] !== $player_ipv4) {
-            // TODO: Log mismatch
+            $this->logger->error('Authentication token player IP mismatch', [
+              'token_ip' => $token['player_ipv4'],
+              'actual_ip' => $player_ipv4
+            ]);
             $return .= "TOKBAD: $callsign\n";
             continue;
           }
 
           $return .= "BZID: $user_id $callsign\nTOKGOOD: $callsign\n";
         } catch (\PDOException $e) {
-          // TODO: Log failure
+          $this->logger('Database error reading token', ['token' => $token, 'user_id' => $user_id]);
           $return .= "TOKBAD: $callsign\n";
         }
       }

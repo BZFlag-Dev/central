@@ -26,6 +26,8 @@ use App\Controller\LegacyListController;
 use App\Util\PHPBBIntegration;
 use DI\Bridge\Slim\Bridge;
 use League\Config\Configuration;
+use Monolog\Handler\StreamHandler;
+use Monolog\Logger;
 use Nette\Schema\Expect;
 
 require __DIR__ . '/../vendor/autoload.php';
@@ -35,7 +37,6 @@ $container = new \DI\Container();
 $container->set(Configuration::class, function (): Configuration {
   // Define configuration schema
   $config = new Configuration([
-    'debug' => Expect::bool(false),
     // Hostname that, when used, triggers the legacy bzfls2 compatible interface
     'legacy_host' => Expect::string()->required(),
     // If a server has not been updated recently, it will be purged. Value in seconds.
@@ -61,6 +62,15 @@ $container->set(Configuration::class, function (): Configuration {
       'database' => Expect::string()->required(),
       'username' => Expect::string()->required(),
       'password' => Expect::string()->required()
+    ]),
+    // Display debug messages in the browser? Disable for production site
+    'debug' => Expect::bool(false),
+    // Activity/error logging
+    'logging' => Expect::structure([
+      // Absolute path to the configuration file
+      'path' => Expect::string(dirname(__DIR__).'/var/log/app.log'),
+      // Log level (see https://seldaek.github.io/monolog/doc/01-usage.html)
+      'level' => Expect::int(250)->min(100)->max(600)
     ])
   ]);
 
@@ -88,8 +98,13 @@ $container->set(Redis::class, function (Configuration $config): Redis {
   return $redis;
 });
 
-$container->set('what', function (Configuration $config, PDO $pdo, Redis $redis): PHPBBIntegration {
-  return new PHPBBIntegration($config, $pdo, $redis);
+$container->set(Logger::class, function (Configuration $config): Logger {
+  $c = $config->get('logging');
+  $logger = new Logger('app');
+  $logger->pushHandler(new StreamHandler($c['path'], $c['level']));
+  $logger->pushProcessor(new \Monolog\Processor\WebProcessor());
+  $logger->pushProcessor(new \Monolog\Processor\IntrospectionProcessor());
+  return $logger;
 });
 
 // Create our application
@@ -100,7 +115,7 @@ $config = $app->getContainer()->get(Configuration::class);
 
 // Set up error handling
 // TODO: Logging errors to a file
-$errorMiddleware = $app->addErrorMiddleware($config->get('debug'), true, true);
+$errorMiddleware = $app->addErrorMiddleware($config->get('debug'), true, true, $app->getContainer()->get(Logger::class));
 
 // TODO: Delete expired authentication tokens and stale servers
 

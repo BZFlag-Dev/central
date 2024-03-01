@@ -15,8 +15,14 @@ Requirements
 Installation
 ------------
 
+Install dependencies:
 ```bash
 composer install --no-dev
+```
+
+Ensure that PHP can write to var/log/:
+```bash
+sudo chown www-data:www-data var/log/
 ```
 
 Create a config.php file at the top level of the source with at least the following, adjusting values as needed:
