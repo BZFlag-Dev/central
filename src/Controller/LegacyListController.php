@@ -359,7 +359,7 @@ class LegacyListController
             $errors[] = 'Hosting key mismatch when updating server';
           }
           else {
-            $sta = $this->pdo->prepare("UPDATE servers SET protocol = :protocol, game_info = :game_info, description = :description, has_advert_groups = :has_advert_groups WHERE id = :id");
+            $sta = $this->pdo->prepare("UPDATE servers SET protocol = :protocol, game_info = :game_info, description = :description, has_advert_groups = :has_advert_groups, when_updated = NOW() WHERE id = :id");
             $sta->bindValue('id', $existing['id'], PDO::PARAM_INT);
             $sta->bindValue('protocol', $data['version']);
             $sta->bindValue('game_info', $data['gameinfo']);
