@@ -128,9 +128,9 @@ class LegacyListController
     // Get the phpbb helper
     $phpbb = $this->app->getContainer()->get(PHPBBIntegration::class);
 
-    // Function to split string on CRLF separators and remove empty values
+    // Function to split string on CRLF or LF separators and remove empty values
     $split_without_empty = function ($string) {
-      return array_filter(explode(["\r\n", "\n"], $string), function ($v) { return !empty($v); });
+      return array_filter(explode("\n", str_replace("\r\n", "\n", $string)), function ($v) { return !empty($v); });
     };
 
     // Take the horrible group list and split it out into an array of groups, removing any empty values
@@ -138,13 +138,8 @@ class LegacyListController
 
     // Loop through each token to process
     foreach($split_without_empty($data['checktokens']) as $checktoken) {
-      list($callsign, $remaining) = explode('@', $checktoken);
-      if ($remaining) {
-        list($player_ipv4, $token_string) = explode('=', $remaining);
-      } else {
-        $ip = null;
-        list(, $token_string) = explode('=', $checktoken);
-      }
+      list($remaining, $token_string) = explode('=', $checktoken);
+      list($callsign, $player_ipv4) = explode('@', $remaining);
 
       // If we have both a callsign and a token, process it
       if (!empty($callsign) && !empty($token_string)) {
@@ -186,7 +181,7 @@ class LegacyListController
           }
           // Otherwise, use the old IPv4 comparison check if the token has one
           // TODO: Should auth fail here if the token does not have an IP saved?
-          elseif (!empty($token['player_ipv4']) && $token['player_ipv4'] !== $player_ipv4) {
+          elseif (!empty($player_ipv4) && $token['player_ipv4'] !== $player_ipv4) {
             $this->logger->error('Authentication token player IP mismatch', [
               'token_ip' => $token['player_ipv4'],
               'actual_ip' => $player_ipv4
