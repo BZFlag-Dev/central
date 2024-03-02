@@ -67,10 +67,13 @@ $container->set(Configuration::class, function (): Configuration {
     'debug' => Expect::bool(false),
     // Activity/error logging
     'logging' => Expect::structure([
-      // Absolute path to the configuration file
-      'path' => Expect::string(dirname(__DIR__).'/var/log/app.log'),
-      // Log level (see https://seldaek.github.io/monolog/doc/01-usage.html)
-      'level' => Expect::int(250)->min(100)->max(600)
+      // Absolute path to the log directory
+      'log_directory' => Expect::string(dirname(__DIR__).'/var/log'),
+      // Application error level, which controls the level of detail written to app.log
+      // Debug = 100, Info = 200, Notice = 250, Warning = 300, Error = 400, Critical = 500, Alert = 550, Emergency = 600
+      'app_level' => Expect::int(250)->min(100)->max(600),
+      // Log other errors (such as 404 errors or other fatal PHP errors) to error.log
+      'log_other_errors' => Expect::bool(false)
     ])
   ]);
 
@@ -100,10 +103,10 @@ $container->set(Redis::class, function (Configuration $config): Redis {
 
 $container->set(Logger::class, function (Configuration $config): Logger {
   $c = $config->get('logging');
-  $logger = new Logger('app');
-  $logger->pushHandler(new StreamHandler($c['path'], $c['level']));
-  $logger->pushProcessor(new \Monolog\Processor\WebProcessor());
-  $logger->pushProcessor(new \Monolog\Processor\IntrospectionProcessor());
+  $logger = new Logger('bzfls');
+  $stream = new StreamHandler("{$c['log_directory']}/app.log", $c['app_level']);
+  $stream->setFormatter(new \Monolog\Formatter\LineFormatter("[%datetime%] %level_name%: %message% %context% %extra%\n"));
+  $logger->pushHandler($stream);
   return $logger;
 });
 
@@ -114,8 +117,17 @@ $app = Bridge::create($container);
 $config = $app->getContainer()->get(Configuration::class);
 
 // Set up error handling
-// TODO: Logging errors to a file
-$errorMiddleware = $app->addErrorMiddleware($config->get('debug'), true, true, $app->getContainer()->get(Logger::class));
+$log_config = $config->get('logging');
+if ($log_config['log_other_errors']) {
+  $error_logger = new Logger('error');
+  $error_stream = new StreamHandler("{$log_config['log_directory']}/error.log", 400);
+  $error_stream->setFormatter(new \Monolog\Formatter\LineFormatter("[%datetime%] %level_name%: %message% %context% %extra%\n"));
+  $error_logger->pushHandler($error_stream);
+  $error_logger->pushProcessor(new \Monolog\Processor\WebProcessor());
+  $error_logger->pushProcessor(new \Monolog\Processor\IntrospectionProcessor());
+}
+
+$errorMiddleware = $app->addErrorMiddleware($config->get('debug'), true, true, $error_logger??null);
 
 // TODO: Delete expired authentication tokens and stale servers
 
