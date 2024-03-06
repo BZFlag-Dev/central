@@ -23,6 +23,7 @@ declare(strict_types=1);
 namespace App\Util;
 
 use League\Config\Configuration;
+use Monolog\Logger;
 use PDO;
 use PDOException;
 use Redis;
@@ -36,7 +37,7 @@ class PHPBBIntegration
 
   protected array $login_config;
 
-  public function __construct(Configuration $config, protected PDO $pdo, protected Redis $redis)
+  public function __construct(Configuration $config, protected PDO $pdo, protected Redis $redis, protected Logger $logger)
   {
     // Expose some variables to the global scope so that phpbb files we include can use them
     global $phpbb_root_path, $phpEx, $phpbb_container;
@@ -63,7 +64,7 @@ class PHPBBIntegration
     include($phpbb_root_path.'includes/utf/utf_tools.'.$phpEx);
   }
 
-  public function authenticate_player(string $callsign, string $password): array
+  public function authenticate_player(string $username, string $password): array
   {
     // If too many attempts have been made and the user has been locked out, bail out here
     $key_lockout = "CENTRAL:AUTH_LOCKOUT:{$_SERVER['REMOTE_ADDR']}";
@@ -73,21 +74,21 @@ class PHPBBIntegration
           'error' => 'Too many failed login attempts. Temporarily locked out.'
         ];
       }
-    } catch (\RedisException) {
-      // TODO: Log errors
+    } catch (\RedisException $e) {
+      $this->logger->error('Failed to read from redis.', ['error' => $e->getMessage(), 'key' => $key_lockout]);
     }
 
     // Clean up UTF-8 characters
-    $clean_callsign = utf8_clean_string($callsign);
+    $username_clean = utf8_clean_string($username);
 
     // Try to get user information for this user
     try {
       $statement = $this->pdo->prepare("SELECT user_id, user_password, username FROM {$this->phpbb_database}.{$this->phpbb_prefix}users WHERE username_clean = :username_clean AND user_inactive_reason = 0");
-      $statement->bindParam('username_clean', $clean_callsign);
+      $statement->bindParam('username_clean', $username_clean);
       $statement->execute();
       $user = $statement->fetch();
-    } catch(PDOException) {
-      // TODO: Log errors
+    } catch(PDOException $e) {
+      $this->logger->error('Database error when trying to fetch user information for authentication.', ['error' => $e->getMessage(), 'username' => $username]);
     }
 
     // If the user is registered and the password hash matches, we're good!
@@ -112,19 +113,20 @@ class PHPBBIntegration
             $statement->execute();
             // TODO: Check if this works. Some database drivers don't support this.
             if ($statement->rowCount() != 1) {
-              // TODO: Log errors
+              $this->logger->error('Failed to update password hash algorithm.', ['username' => $username]);
+            } else {
+              $this->logger->info('Successfully upgraded password hash algorithm.', ['username' => $username]);
             }
-
-          } catch (PDOException) {
-            // TODO: Log errors
+          } catch (PDOException $e) {
+            $this->logger->error('Database error when trying to update password hash algorithm.', ['error' => $e->getMessage(), 'username' => $username]);
           }
         }
 
         // Reset login attempts
         try {
           $this->redis->del($key_login_attempts);
-        } catch (\RedisException) {
-          // TODO: Log errors
+        } catch (\RedisException $e) {
+          $this->logger->error('Failed to delete from redis.', ['error' => $e->getMessage(), 'key' => $key_login_attempts]);
         }
 
         return [
@@ -148,8 +150,8 @@ class PHPBBIntegration
               $this->redis->expire($key_lockout, $this->login_config['lockout_duration']);
             }
           }
-        } catch (\RedisException) {
-          // TODO: Log errors
+        } catch (\RedisException $e) {
+          $this->logger->error('Failed to write to redis.', ['error' => $e->getMessage(), 'key' => $key_login_attempts]);
         }
       }
     }
@@ -171,8 +173,8 @@ class PHPBBIntegration
       $statement->execute();
       $user = $statement->fetch();
       return $user['user_id'];
-    } catch(PDOException) {
-      // TODO: Log errors
+    } catch(PDOException $e) {
+      $this->logger->error('Database error when trying to fetch user information for ID lookup.', ['error' => $e->getMessage(), 'username' => $username]);
     }
 
     return null;
@@ -183,12 +185,12 @@ class PHPBBIntegration
     // Try to get user information for this user
     try {
       $statement = $this->pdo->prepare("SELECT username_clean FROM {$this->phpbb_database}.{$this->phpbb_prefix}users WHERE user_id = :user_id AND user_inactive_reason = 0");
-      $statement->bindParam('user_id', $user_id);
+      $statement->bindParam('user_id', $user_id, PDO::PARAM_INT);
       $statement->execute();
       $user = $statement->fetch();
       return $user['username_clean'];
-    } catch(PDOException) {
-      // TODO: Log errors
+    } catch(PDOException $e) {
+      $this->logger->error('Database error when trying to fetch user information for username lookup.', ['error' => $e->getMessage(), 'user_id' => $user_id]);
     }
 
     return null;
