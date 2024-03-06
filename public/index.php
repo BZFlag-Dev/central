@@ -70,7 +70,7 @@ $container->set(Configuration::class, function (): Configuration {
       'log_directory' => Expect::string(dirname(__DIR__).'/var/log'),
       // Application error level, which controls the level of detail written to app.log
       // Debug = 100, Info = 200, Notice = 250, Warning = 300, Error = 400, Critical = 500, Alert = 550, Emergency = 600
-      'app_level' => Expect::int(250)->min(100)->max(600),
+      'app_level' => Expect::int(200)->min(100)->max(600),
       // Log other errors (such as 404 errors or other fatal PHP errors) to error.log
       'log_other_errors' => Expect::bool(false)
     ])
