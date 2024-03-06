@@ -23,7 +23,6 @@ declare(strict_types=1);
 use App\Controller\DocumentationController;
 use App\Controller\GameServersController;
 use App\Controller\LegacyListController;
-use App\Util\PHPBBIntegration;
 use DI\Bridge\Slim\Bridge;
 use League\Config\Configuration;
 use Monolog\Handler\StreamHandler;

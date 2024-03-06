@@ -70,8 +70,11 @@ class LegacyListController
       return '';
     }
 
+
+    // Grab our phpBB helper
     $phpbb = $this->app->getContainer()->get(PHPBBIntegration::class);
 
+    // Attempt to authenticate the player using the provided callsign and password
     $authentication_attempt = $phpbb->authenticate_player($data['callsign'], $data['password']);
 
     // If the authentication failed, throw a NOTOK back
@@ -85,9 +88,8 @@ class LegacyListController
     // Otherwise, let's generate, store, and return a token
     else {
       try {
-        //$token = random_int(0, 2147483647);
-        // TODO: Test if this works. This generates a 20 character string. The client/server allocate 22 bytes,
-        //   including the terminating NUL, for the token.
+        // Generate a 20 character string for the authentication token. The client/server allocate 22 bytes, including
+        // the terminating NUL, for the token.
         $token = bin2hex(random_bytes(10));
         // TODO: Save the server host/port if provided
         $statement = $this->pdo->prepare('INSERT INTO auth_tokens (user_id, token, player_ipv4) VALUES (:user_id, :token, :player_ipv4)');
@@ -153,7 +155,7 @@ class LegacyListController
         }
 
         try {
-          $statement = $this->pdo->prepare($sql = 'SELECT player_ipv4, server_host, server_port FROM auth_tokens WHERE user_id = :user_id AND token = :token AND TIMESTAMPDIFF(SECOND, when_created, NOW()) < :token_lifetime');
+          $statement = $this->pdo->prepare('SELECT player_ipv4, server_host, server_port FROM auth_tokens WHERE user_id = :user_id AND token = :token AND TIMESTAMPDIFF(SECOND, when_created, NOW()) < :token_lifetime');
           $statement->bindValue('user_id', $user_id, PDO::PARAM_INT);
           $statement->bindValue('token', $token_string);
           $statement->bindValue('token_lifetime', $this->token_lifetime, PDO::PARAM_INT);
@@ -190,6 +192,8 @@ class LegacyListController
             continue;
           }
 
+          // TODO: Check group membership
+
           $return .= "BZID: $user_id $callsign\nTOKGOOD: $callsign\n";
         } catch (\PDOException $e) {
           $this->logger('Database error reading token', ['token' => $token, 'user_id' => $user_id]);
@@ -201,7 +205,8 @@ class LegacyListController
     return $return;
   }
 
-  private function split_nameport($nameport): array {
+  private function split_nameport($nameport): array
+  {
     // Default to port 5154
     $port = '5154';
 
@@ -217,7 +222,8 @@ class LegacyListController
     return [$hostname, $port];
   }
 
-  private function dns_has_ip($host, $ip): bool {
+  private function dns_has_ip($host, $ip): bool
+  {
     // If the host is actually an IPv4 address, just compare that to the passed in IP.
     if (filter_var($host, FILTER_VALIDATE_IP, ['flags' => FILTER_FLAG_IPV4])) {
       return $host === $ip;
@@ -225,8 +231,9 @@ class LegacyListController
 
     $dns = dns_get_record($host, DNS_A|DNS_AAAA);
     foreach($dns as $record) {
-      if (($record['type'] === 'A' && $record['ip'] === $ip) || ($record['type'] === 'AAAA' && $record['ipv6'] === $ip))
+      if (($record['type'] === 'A' && $record['ip'] === $ip) || ($record['type'] === 'AAAA' && $record['ipv6'] === $ip)) {
         return true;
+      }
     }
 
     return false;
@@ -357,8 +364,7 @@ class LegacyListController
         if ($existing) {
           if (!empty($hosting_key) && $existing['hosting_key_id'] !== $hosting_key['id']) {
             $errors[] = 'Hosting key mismatch when updating server';
-          }
-          else {
+          } else {
             $sta = $this->pdo->prepare("UPDATE servers SET protocol = :protocol, game_info = :game_info, description = :description, has_advert_groups = :has_advert_groups, when_updated = NOW() WHERE id = :id");
             $sta->bindValue('id', $existing['id'], PDO::PARAM_INT);
             $sta->bindValue('protocol', $data['version']);
@@ -438,8 +444,7 @@ class LegacyListController
         $statement->bindValue('port', $port, PDO::PARAM_INT);
         $statement->execute();
         $server = $statement->fetch();
-      }
-      catch(\PDOException $e) {
+      } catch(\PDOException $e) {
         // TODO: Log failure
         $errors[] = 'Failed to lookup server. '.$e->getMessage();
       }
@@ -448,7 +453,7 @@ class LegacyListController
     // If the server exists, let's decide if we allow the removal
     if (!empty($server)) {
       // If a key is provided, and it's the same as the one used for listing the server, we can skip the IP check
-      if ( (!empty($data['key']) && $data['key'] === $server['key_string']) || $this->dns_has_ip($hostname, $_SERVER['REMOTE_ADDR'])) {
+      if ((!empty($data['key']) && $data['key'] === $server['key_string']) || $this->dns_has_ip($hostname, $_SERVER['REMOTE_ADDR'])) {
         try {
           $statement = $this->pdo->prepare('DELETE FROM servers WHERE id = :id LIMIT 1');
           $statement->bindValue('id', $server['id']);
@@ -457,13 +462,11 @@ class LegacyListController
           // TODO: Delete advert groups for this server
 
           $response->getBody()->write("REMOVE: {$data['nameport']}\n");
-        }
-        catch (\PDOException $e) {
+        } catch (\PDOException $e) {
           // TODO: Log failure
           $errors[] = 'Failed to remove server.';
         }
-      }
-      else {
+      } else {
         // TODO: Log mismatch
         $errors[] = "Requesting address {$_SERVER['REMOTE_ADDR']} is not in the resolved hostname.";
       }

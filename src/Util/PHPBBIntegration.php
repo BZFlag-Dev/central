@@ -91,7 +91,11 @@ class PHPBBIntegration
     }
 
     // If the user is registered and the password hash matches, we're good!
+    // NOTE: I decided against counting failed logins to a user that doesn't exist towards the lockout. This is to
+    // prevent players that switch their name to an unregistered user but don't clear out their password from being
+    // locked out.
     if ($user) {
+      // TODO: Should we block a range of IPv6 addresses instead of just the exact IP?
       $key_login_attempts = "CENTRAL:AUTH_ATTEMPTS:{$_SERVER['REMOTE_ADDR']}";
 
       // User exists, valid password
@@ -123,7 +127,6 @@ class PHPBBIntegration
           // TODO: Log errors
         }
 
-        // TODO: Actually return needed info here
         return [
           'bzid' => $user['user_id'],
           'callsign' => $user['username']
