@@ -195,4 +195,24 @@ class PHPBBIntegration
 
     return null;
   }
+
+  public function get_groups_by_user_id(int $user_id): array|null {
+    // Try to get the group membership information for this user
+    try {
+      // NOTE: The phpbb "Exempt group leader from permissions" group setting sets group_skip_auth to 1, so we can use
+      // that to prevent leaders from being a member of a group.
+      $statement = $this->pdo->prepare("SELECT g.group_name FROM {$this->phpbb_database}.{$this->phpbb_prefix}groups g INNER JOIN {$this->phpbb_database}.{$this->phpbb_prefix}user_group ug ON ug.group_id = g.group_id WHERE ug.user_id = :user_id AND ug.user_pending = 0 AND NOT (g.group_skip_auth = 1 AND ug.group_leader = 1)");
+      $statement->bindValue('user_id', $user_id, PDO::PARAM_INT);
+      $statement->execute();
+      $groups = [];
+      while ($row = $statement->fetch()) {
+        $groups[] = $row['group_name'];
+      }
+      return $groups;
+    } catch (PDOException $e) {
+      $this->logger->error('Database error when trying to fetch group list for user.', ['error' => $e->getMessage(), 'user_id' => $user_id]);
+    }
+
+    return null;
+  }
 }

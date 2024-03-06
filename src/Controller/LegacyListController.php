@@ -155,6 +155,16 @@ class LegacyListController
     // Take the horrible group list and split it out into an array of groups, removing any empty values
     $groups = $split_without_empty($data['groups'] ?? '');
 
+    // Prepare SQL statements
+    try {
+      $select_token_statement = $this->pdo->prepare('SELECT player_ipv4, server_host, server_port FROM auth_tokens WHERE user_id = :user_id AND token = :token AND TIMESTAMPDIFF(SECOND, when_created, NOW()) < :token_lifetime');
+      $select_token_statement->bindValue('token_lifetime', $this->token_lifetime, PDO::PARAM_INT);
+      $delete_token_statement = $this->pdo->prepare('DELETE FROM auth_tokens WHERE user_id = :user_id AND token = :token');
+    } catch (\PDOException $e) {
+      $this->logger->critical('Failed to prepare one or more statements for processing tokens.', ['error' => $e->getMessage()]);
+      return "ERROR: Fatal error when attempting to check tokens.\n";
+    }
+
     // Loop through each token to process
     foreach($split_without_empty($data['checktokens']) as $checktoken) {
       list($remaining, $token_string) = explode('=', $checktoken);
@@ -162,6 +172,13 @@ class LegacyListController
 
       // If we have both a callsign and a token, process it
       if (!empty($callsign) && !empty($token_string)) {
+        // TODO: Does anything even care about this message? Is it just for troubleshooting?
+        $return .= "MSG: checktoken callsign=$callsign, ip={$_SERVER['REMOTE_ADDR']}, token=$token_string";
+        foreach($groups as $group) {
+          $return .= " group=$group";
+        }
+        $return .= "\n";
+
         // Try to fetch the user ID for this user
         $user_id = $phpbb->get_user_id_by_username($callsign);
 
@@ -172,18 +189,18 @@ class LegacyListController
         }
 
         try {
-          $statement = $this->pdo->prepare('SELECT player_ipv4, server_host, server_port FROM auth_tokens WHERE user_id = :user_id AND token = :token AND TIMESTAMPDIFF(SECOND, when_created, NOW()) < :token_lifetime');
-          $statement->bindValue('user_id', $user_id, PDO::PARAM_INT);
-          $statement->bindValue('token', $token_string);
-          $statement->bindValue('token_lifetime', $this->token_lifetime, PDO::PARAM_INT);
-          $statement->execute();
-          $token = $statement->fetch();
+          $select_token_statement->bindValue('user_id', $user_id, PDO::PARAM_INT);
+          $select_token_statement->bindValue('token', $token_string);
+          $select_token_statement->execute();
+          $token = $select_token_statement->fetch();
 
           if (!$token) {
             $this->logger->error('Authentication token not found', ['token' => $token_string]);
             $return .= "TOKBAD: $callsign\n";
             continue;
           }
+
+          // TODO: Delete the token here
 
           // If the token has a host set, and we have a host to compare it to, check that. This will allow authentication to
           // work in situations where the player IP exposed to the list and the game server differ, such as CGNAT or
@@ -209,9 +226,18 @@ class LegacyListController
             continue;
           }
 
-          // TODO: Check group membership
-
-          $return .= "BZID: $user_id $callsign\nTOKGOOD: $callsign\n";
+          $return .= "BZID: $user_id $callsign\nTOKGOOD: $callsign";
+          // Check group membership, if the server cares
+          if (sizeof($groups) > 0) {
+            $player_groups = $phpbb->get_groups_by_user_id($user_id);
+            if (!empty($player_groups)) {
+              $common_groups = array_intersect($groups, $player_groups);
+              if (sizeof($common_groups) > 0) {
+                $return .= ':' . implode(':', $common_groups);
+              }
+            }
+          }
+          $return .= "\n";
         } catch (\PDOException $e) {
           $this->logger('Database error reading token', ['token' => $token, 'user_id' => $user_id]);
           $return .= "TOKBAD: $callsign\n";
