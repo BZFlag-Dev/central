@@ -189,6 +189,7 @@ class LegacyListController
         }
 
         try {
+          // Fetch the token information
           $select_token_statement->bindValue('user_id', $user_id, PDO::PARAM_INT);
           $select_token_statement->bindValue('token', $token_string);
           $select_token_statement->execute();
@@ -200,7 +201,10 @@ class LegacyListController
             continue;
           }
 
-          // TODO: Delete the token here
+          // Delete the token so it can't be used again
+          $delete_token_statement->bindValue('user_id', $user_id, PDO::PARAM_INT);
+          $delete_token_statement->bindValue('token', $token_string);
+          $delete_token_statement->execute();
 
           // If the token has a host set, and we have a host to compare it to, check that. This will allow authentication to
           // work in situations where the player IP exposed to the list and the game server differ, such as CGNAT or
