@@ -70,6 +70,22 @@ class LegacyListController
       return '';
     }
 
+    // Split nameport into host and port parts
+    // TODO: Test if $server_host isn't defined by the below
+    if (!empty($data['nameport'])) {
+      $parts = parse_url("bzfs://{$data['nameport']}");
+      // If the host/port is seriously malformed, just nuke the value
+      if ($parts === false) {
+        unset($data['nameport']);
+      } else {
+        $server_host = $parts['host'];
+        $server_port = $parts['port'] ?? 5154;
+      }
+      unset($parts);
+    } elseif (!empty($data['host'])) {
+      $server_host = $data['host'];
+      $server_port = $data['port'] ?? 5154;
+    }
 
     // Grab our phpBB helper
     $phpbb = $this->app->getContainer()->get(PHPBBIntegration::class);
@@ -91,11 +107,12 @@ class LegacyListController
         // Generate a 20 character string for the authentication token. The client/server allocate 22 bytes, including
         // the terminating NUL, for the token.
         $token = bin2hex(random_bytes(10));
-        // TODO: Save the server host/port if provided
-        $statement = $this->pdo->prepare('INSERT INTO auth_tokens (user_id, token, player_ipv4) VALUES (:user_id, :token, :player_ipv4)');
-        $statement->bindParam('user_id', $authentication_attempt['bzid'], PDO::PARAM_INT);
-        $statement->bindParam('token', $token);
-        $statement->bindParam('player_ipv4', $_SERVER['REMOTE_ADDR']);
+        $statement = $this->pdo->prepare('INSERT INTO auth_tokens (user_id, token, player_ipv4, server_host, server_port) VALUES (:user_id, :token, :player_ipv4, :server_host, :server_port)');
+        $statement->bindValue('user_id', $authentication_attempt['bzid'], PDO::PARAM_INT);
+        $statement->bindValue('token', $token);
+        $statement->bindValue('player_ipv4', $_SERVER['REMOTE_ADDR']);
+        $statement->bindValue('server_host', $server_host??null);
+        $statement->bindValue('server_port', $server_port??null, PDO::PARAM_INT);
         $statement->execute();
         return "TOKEN: $token\n";
       } catch (RandomException|\PDOException $e) {
