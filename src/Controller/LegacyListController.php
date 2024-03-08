@@ -63,7 +63,7 @@ class LegacyListController
     }
   }
 
-  private function authenticate_player(array $data): string
+  private function authenticate_player(array $data, int|null &$bzid = null): string
   {
     // If either the callsign or password are empty, just bail out here
     if (empty($data['callsign']) || empty($data['password'])) {
@@ -114,6 +114,9 @@ class LegacyListController
         $statement->bindValue('server_host', $server_host??null);
         $statement->bindValue('server_port', $server_port??null, PDO::PARAM_INT);
         $statement->execute();
+        if (func_num_args() > 1) {
+          $bzid = $authentication_attempt['bzid'];
+        }
         return "TOKEN: $token\n";
       } catch (RandomException|\PDOException $e) {
         $this->logger->error('Failed to generate authentication token', ['error' => $e->getMessage()]);
@@ -288,22 +291,29 @@ class LegacyListController
 
   private function list(Request $request, Response $response, array $data): Response
   {
-    $sql = 'SELECT id, host, port, protocol, game_info, description, has_advert_groups FROM servers';
+    $body = $response->getBody();
+    $body->write($this->authenticate_player($data, $bzid));
+
+    if ($bzid) {
+      $phpbb_database = $this->config->get('phpbb.database');
+      $phpbb_prefix = $this->config->get('phpbb.prefix');
+      $sql = "SELECT s.id, s.host, s.port, s.protocol, s.game_info, s.description FROM servers s LEFT JOIN server_advert_groups ag INNER JOIN {$phpbb_database}.{$phpbb_prefix}user_group ug ON ag.group_id = ug.group_id ON s.id = ag.server_id WHERE (ug.user_id = :bzid OR ag.server_id IS NULL)";
+    } else {
+      $sql = 'SELECT s.id, s.host, s.port, s.protocol, s.game_info, s.description FROM servers s LEFT JOIN server_advert_groups ag ON s.id = ag.server_id WHERE ag.server_id IS NULL';
+    }
+
     if (isset($data['version'])) {
-      $sql .= ' WHERE protocol = :protocol';
+      $sql .= ' AND protocol = :protocol';
     }
     $sta = $this->pdo->prepare($sql);
+    if ($bzid) {
+      $sta->bindValue('bzid', $bzid);
+    }
     if (isset($data['version'])) {
       $sta->bindValue('protocol', $data['version']);
     }
     $sta->execute();
-    $body = $response->getBody();
-    $body->write($this->authenticate_player($data));
     while($row = $sta->fetch()) {
-      // TODO: Support advert groups. For now just hide servers that *have* advert groups.
-      if ($row['has_advert_groups']) {
-        continue;
-      }
       $body->write("{$row['host']}:{$row['port']} {$row['protocol']} {$row['game_info']} 127.0.0.1 {$row['description']}\n");
     }
 
@@ -400,40 +410,56 @@ class LegacyListController
     if (empty($errors)) {
       try {
         // Check if the server already exists
-        $sta = $this->pdo->prepare('SELECT id, hosting_key_id FROM servers WHERE host = :host AND port = :port LIMIT 1');
+        $sta = $this->pdo->prepare('SELECT id, protocol, hosting_key_id FROM servers WHERE host = :host AND port = :port LIMIT 1');
         $sta->bindValue('host', $hostname);
         $sta->bindValue('port', $port, PDO::PARAM_INT);
         $sta->execute();
         $existing = $sta->fetch();
 
         // If this server already exists, update it
-        // TODO: Support advert groups
         if ($existing) {
           if (!empty($hosting_key) && $existing['hosting_key_id'] !== $hosting_key['id']) {
-            $errors[] = 'Hosting key mismatch when updating server';
+            $errors[] = 'Hosting key mismatch when updating server.';
+          } elseif ($existing['protocol'] !== $data['version']) {
+            $errors[] = 'Protocol version mismatch when updating server.';
           } else {
-            $sta = $this->pdo->prepare("UPDATE servers SET protocol = :protocol, game_info = :game_info, description = :description, has_advert_groups = :has_advert_groups, when_updated = NOW() WHERE id = :id");
+            $sta = $this->pdo->prepare("UPDATE servers SET game_info = :game_info, description = :description, when_updated = NOW() WHERE id = :id");
             $sta->bindValue('id', $existing['id'], PDO::PARAM_INT);
-            $sta->bindValue('protocol', $data['version']);
             $sta->bindValue('game_info', $data['gameinfo']);
             $sta->bindValue('description', $data['title']);
-            $sta->bindValue('has_advert_groups', 0);
             $sta->execute();
           }
         } // Otherwise, insert a new server entry
         else {
-          $sta = $this->pdo->prepare("INSERT INTO servers (host, port, hosting_key_id, protocol, game_info, description, has_advert_groups) VALUES (:host, :port, :hosting_key_id, :protocol, :game_info, :description, :has_advert_groups)");
+          $sta = $this->pdo->prepare("INSERT INTO servers (host, port, hosting_key_id, protocol, game_info, description) VALUES (:host, :port, :hosting_key_id, :protocol, :game_info, :description)");
           $sta->bindValue('host', $hostname);
           $sta->bindValue('port', $port, PDO::PARAM_INT);
           $sta->bindValue('hosting_key_id', $hosting_key['id'] ?? null, PDO::PARAM_INT);
           $sta->bindValue('protocol', $data['version']);
           $sta->bindValue('game_info', $data['gameinfo']);
           $sta->bindValue('description', $data['title']);
-          $sta->bindValue('has_advert_groups', 0);
-          $sta->execute();
+
+          if ($sta->execute() && !empty($data['advertgroups'])) {
+            $advert_groups = explode(',', $data['advertgroups']);
+            if (!empty($advert_groups) && !in_array('EVERYONE', $advert_groups, true)) {
+              $server_id = $this->pdo->lastInsertId();
+              if (!isset($phpbb)) {
+                $phpbb = $this->app->getContainer()->get(PHPBBIntegration::class);
+              }
+              $sta = $this->pdo->prepare('INSERT INTO server_advert_groups (server_id, group_id) VALUES (:server_id, :group_id)');
+              $sta->bindValue('server_id', $server_id, PDO::PARAM_INT);
+              foreach($advert_groups as $advert_group) {
+                $group_id = $phpbb->get_group_id_by_name($advert_group);
+                if ($group_id) {
+                  $sta->bindValue('group_id', $group_id);
+                  $sta->execute();
+                }
+              }
+            }
+          }
         }
       } catch(\PDOException $e) {
-        // TODO: Log errors
+        $this->logger->error('Database error when adding or updating server.', ['error' => $e->getMessage()]);
         $errors[] = 'Database error when adding or updating the server.';
       }
     }
@@ -503,10 +529,12 @@ class LegacyListController
       if ((!empty($data['key']) && $data['key'] === $server['key_string']) || $this->dns_has_ip($hostname, $_SERVER['REMOTE_ADDR'])) {
         try {
           $statement = $this->pdo->prepare('DELETE FROM servers WHERE id = :id LIMIT 1');
-          $statement->bindValue('id', $server['id']);
+          $statement->bindValue('id', $server['id'], PDO::PARAM_INT);
           $statement->execute();
 
-          // TODO: Delete advert groups for this server
+          $statement = $this->pdo->prepare('DELETE FROM server_advert_groups WHERE server_id = :server_id');
+          $statement->bindValue('server_id', $server['id'], PDO::PARAM_INT);
+          $statement->execute();
 
           $response->getBody()->write("REMOVE: {$data['nameport']}\n");
         } catch (\PDOException $e) {

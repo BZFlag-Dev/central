@@ -196,21 +196,61 @@ class PHPBBIntegration
     return null;
   }
 
-  public function get_groups_by_user_id(int $user_id): array|null {
+  public function get_groups_by_user_id(int $user_id): array|null
+  {
     // Try to get the group membership information for this user
     try {
       // NOTE: The phpbb "Exempt group leader from permissions" group setting sets group_skip_auth to 1, so we can use
-      // that to prevent leaders from being a member of a group.
-      $statement = $this->pdo->prepare("SELECT g.group_name FROM {$this->phpbb_database}.{$this->phpbb_prefix}groups g INNER JOIN {$this->phpbb_database}.{$this->phpbb_prefix}user_group ug ON ug.group_id = g.group_id WHERE ug.user_id = :user_id AND ug.user_pending = 0 AND NOT (g.group_skip_auth = 1 AND ug.group_leader = 1)");
+      // that to prevent leaders from being a member of a group. Type 3 groups are the built-in groups, of which we only
+      // allow the use of the REGISTERED group.
+      $statement = $this->pdo->prepare("SELECT g.group_name FROM {$this->phpbb_database}.{$this->phpbb_prefix}groups g INNER JOIN {$this->phpbb_database}.{$this->phpbb_prefix}user_group ug ON ug.group_id = g.group_id WHERE ug.user_id = :user_id AND ug.user_pending = 0 AND (group_type < 3 OR group_name = 'REGISTERED') AND NOT (g.group_skip_auth = 1 AND ug.group_leader = 1)");
       $statement->bindValue('user_id', $user_id, PDO::PARAM_INT);
       $statement->execute();
       $groups = [];
       while ($row = $statement->fetch()) {
         $groups[] = $row['group_name'];
       }
-      return $groups;
+      if (sizeof($groups) > 0) {
+        return $groups;
+      }
     } catch (PDOException $e) {
       $this->logger->error('Database error when trying to fetch group list for user.', ['error' => $e->getMessage(), 'user_id' => $user_id]);
+    }
+
+    return null;
+  }
+
+  public function get_group_by_id(int $group_id): string|null
+  {
+    // Try to get the group membership information for this user
+    try {
+      $statement = $this->pdo->prepare("SELECT group_name FROM {$this->phpbb_database}.{$this->phpbb_prefix}groups WHERE group_id = :group_id AND (group_type < 3 OR group_name = 'REGISTERED')");
+      $statement->bindValue('group_id', $group_id, PDO::PARAM_INT);
+      $statement->execute();
+      $row = $statement->fetch();
+      if ($row) {
+        return $row['group_name'];
+      }
+    } catch (PDOException $e) {
+      $this->logger->error('Database error when trying to fetch group name.', ['error' => $e->getMessage(), 'group_id' => $group_id]);
+    }
+
+    return null;
+  }
+
+  public function get_group_id_by_name(string $group_name): int|null
+  {
+    // Try to get the group membership information for this user
+    try {
+      $statement = $this->pdo->prepare("SELECT group_id FROM {$this->phpbb_database}.{$this->phpbb_prefix}groups WHERE group_name = :group_name AND (group_type < 3 OR group_name = 'REGISTERED')");
+      $statement->bindValue('group_name', $group_name);
+      $statement->execute();
+      $row = $statement->fetch();
+      if ($row) {
+        return $row['group_id'];
+      }
+    } catch (PDOException $e) {
+      $this->logger->error('Database error when trying to fetch group id.', ['error' => $e->getMessage(), 'group_name' => $group_name]);
     }
 
     return null;
