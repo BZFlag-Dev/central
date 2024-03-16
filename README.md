@@ -74,5 +74,6 @@ warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Af
 details.
 
 Some files are distributed under different licenses:
-* public/js/js-cookie.min.js: [MIT License](https://github.com/js-cookie/js-cookie/blob/main/LICENSE)
-* public/images/weblogin_logo.png (and other formats): This logo is licensed under the GNU LGPL 2.1 from the BZFlag project
+* public/js/js-cookie.min.js: [MIT License](https://github.com/js-cookie/js-cookie/blob/main/LICENSE), Copyright (c) 2018 Copyright 2018 Klaus Hartl, Fagner Brack, GitHub Contributors
+* public/images/weblogin_logo.png (and other formats): [GNU LGPL 2.1](https://github.com/BZFlag-Dev/bzflag/blob/2.4/COPYING.LGPL), Copyright (c) 2024 Tim Riker
+* theme toggle SVG/CSS in views/weblogin.html.twig and public/css/weblogin.css: [MIT License](https://github.com/AlfieJones/theme-toggles/blob/main/LICENSE), Copyright (c) 2021 Alfred Jones
