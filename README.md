@@ -59,3 +59,20 @@ GRANT SELECT, UPDATE ON forum.phpbb_users TO central@localhost;
 ```
 
 Import structure.sql into the 'central' database.
+
+
+License
+-------
+Copyright (C) 2023  BZFlag & Associates
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public License for more
+details.
+
+Some files are distributed under different licenses:
+* public/js/js-cookie.min.js: [MIT License](https://github.com/js-cookie/js-cookie/blob/main/LICENSE)
+* public/images/weblogin_logo.png (and other formats): This logo is licensed under the GNU LGPL 2.1 from the BZFlag project
