@@ -28,6 +28,10 @@ use League\Config\Configuration;
 use Monolog\Handler\StreamHandler;
 use Monolog\Logger;
 use Nette\Schema\Expect;
+use Slim\App;
+use Slim\Csrf\Guard;
+use Slim\Views\Twig;
+use Slim\Views\TwigMiddleware;
 
 require __DIR__ . '/../vendor/autoload.php';
 
@@ -82,6 +86,15 @@ $container->set(Configuration::class, function (): Configuration {
   return $config;
 });
 
+$container->set(Twig::class, function (Configuration $config) {
+  $twig = Twig::create(dirname(__DIR__).'/views', [
+    'cache' => dirname(__DIR__).'/var/cache/twig',
+    'auto_reload' => true
+  ]);
+
+  return $twig;
+});
+
 $container->set(PDO::class, function (Configuration $config): PDO {
   $c = $config->get('database');
   return new PDO("mysql:dbname={$c['database']};host={$c['host']}", $c['username'], $c['password'], [
@@ -109,8 +122,30 @@ $container->set(Logger::class, function (Configuration $config): Logger {
   return $logger;
 });
 
+$container->set(Guard::class, function (App $app, Twig $twig): Guard {
+  // Start a session if it hasn't been already
+  if (session_status() === PHP_SESSION_NONE) {
+    // TODO: Support options being passed?
+    session_start();
+  }
+
+  // Create and configure the CSRF guard
+  $csrf = new Guard($app->getResponseFactory(), failureHandler: function (\Psr\Http\Message\ServerRequestInterface $request, \Psr\Http\Server\RequestHandlerInterface $handler) {
+    $request = $request->withAttribute('csrf_status', false);
+    return $handler->handle($request);
+  }, persistentTokenMode: true);
+
+  // Add Twig extension for the CSRF token
+  $twig->getEnvironment()->addExtension(new \App\Misc\CsrfExtension($csrf));
+
+  return $csrf;
+});
+
 // Create our application
 $app = Bridge::create($container);
+
+// Add middleware
+$app->add(TwigMiddleware::createFromContainer($app, Twig::class));
 
 // Grab a pointer to the configuration
 $config = $app->getContainer()->get(Configuration::class);
@@ -134,7 +169,8 @@ $errorMiddleware = $app->addErrorMiddleware($config->get('debug'), true, true, $
 if ($_SERVER['SERVER_NAME'] === $config->get('legacy_host')) {
   $app->map(['GET', 'POST'], '/db/', [LegacyListController::class, 'db']);
   $app->map(['GET', 'POST'], '/bzfls.php', [LegacyListController::class, 'db']);
-  // TODO: Legacy weblogin
+  $app->map(['GET', 'POST'], '/weblogin.php', [LegacyListController::class, 'weblogin'])
+    ->setName('weblogin')->add(Guard::class);
 }
 // Third generation server list which is a modern REST API
 else {

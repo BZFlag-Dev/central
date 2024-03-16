@@ -24,6 +24,8 @@ namespace App\Controller;
 
 use App\Util\PHPBBIntegration;
 use App\Util\Valid;
+use ErrorException;
+use Exception;
 use League\Config\Configuration;
 use Monolog\Logger;
 use PDO;
@@ -31,6 +33,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Random\RandomException;
 use Slim\App;
+use Slim\Views\Twig;
 
 class LegacyListController
 {
@@ -125,6 +128,26 @@ class LegacyListController
     }
   }
 
+  private function create_token(int $bzid, string $server_host = null, int $server_port = null): string|false
+  {
+    try {
+      // Generate a 20 character string for the authentication token. The client/server allocate 22 bytes, including
+      // the terminating NUL, for the token.
+      $token = bin2hex(random_bytes(10));
+      $statement = $this->pdo->prepare('INSERT INTO auth_tokens (user_id, token, player_ipv4, server_host, server_port) VALUES (:user_id, :token, :player_ipv4, :server_host, :server_port)');
+      $statement->bindValue('user_id', $bzid, PDO::PARAM_INT);
+      $statement->bindValue('token', $token);
+      $statement->bindValue('player_ipv4', $_SERVER['REMOTE_ADDR']);
+      $statement->bindValue('server_host', $server_host ?? null);
+      $statement->bindValue('server_port', $server_port ?? null, PDO::PARAM_INT);
+      $statement->execute();
+      return $token;
+    } catch (RandomException|\PDOException $e) {
+      $this->logger->error('Failed to generate authentication token', ['error' => $e->getMessage()]);
+      return false;
+    }
+  }
+
   private function process_tokens(array $data): string
   {
     // Information to return
@@ -144,7 +167,7 @@ class LegacyListController
       unset($parts);
     } elseif (!empty($data['host'])) {
       $server_host = $data['host'];
-      $server_port = $data['port'] ?? 5154;
+      $server_port = (!empty($data['port'])) ? (int)$data['port'] : 5154;
     }
 
     // Get the phpbb helper
@@ -212,22 +235,29 @@ class LegacyListController
           // If the token has a host set, and we have a host to compare it to, check that. This will allow authentication to
           // work in situations where the player IP exposed to the list and the game server differ, such as CGNAT or
           // dual-stack IPv4/6 networks.
-          if (!empty($token['server_host']) && !empty($server_host) && !($token['server_host'] === $server_host && $token['server_port'] === $server_port)) {
-            $this->logger->error('Authentication token server host or port mismatch', [
+          if (!empty($token['server_host']) && !empty($server_host) && $token['server_host'] === $server_host && $token['server_port'] === $server_port) {
+            $this->logger->info('Successfully consumed token using host/port match', [
+              'callsign' => $callsign,
+              'host' => $server_host,
+              'port' => $server_port,
+            ]);
+          }
+          // Otherwise, use the old IPv4 comparison check if the token has one
+          elseif (!empty($player_ipv4) && $token['player_ipv4'] === $player_ipv4) {
+            $this->logger->info('Successfully consumed token using player IPv4 match', [
+              'callsign' => $callsign
+            ]);
+          }
+          // Otherwise, fail the authentication attempt
+          else {
+            $this->logger->error('Authentication token mismatch', [
+              'callsign' => $callsign,
+              'token_ip' => $token['player_ipv4'],
+              'actual_ip' => $player_ipv4,
               'token_host' => $token['server_host'],
               'actual_host' => $server_host,
               'token_port' => $token['server_port'],
               'actual_port' => $server_port
-            ]);
-            $return .= "TOKBAD: $callsign\n";
-            continue;
-          }
-          // Otherwise, use the old IPv4 comparison check if the token has one
-          // TODO: Should auth fail here if the token does not have an IP saved?
-          elseif (!empty($player_ipv4) && $token['player_ipv4'] !== $player_ipv4) {
-            $this->logger->error('Authentication token player IP mismatch', [
-              'token_ip' => $token['player_ipv4'],
-              'actual_ip' => $player_ipv4
             ]);
             $return .= "TOKBAD: $callsign\n";
             continue;
@@ -560,6 +590,87 @@ class LegacyListController
     $response->getBody()->write($this->process_tokens($data));
     return $response
       ->withHeader('Content-Type', 'text/plain');
+  }
+
+  public function weblogin(Request $request, Response $response, Twig $twig): Response
+  {
+    // Grab the request data for this request
+    $data = ($request->getMethod() === 'POST') ? $request->getParsedBody() : $request->getQueryParams();
+
+    // Fetch the color them from the cookie
+    $color_theme = (!isset($_COOKIE['color_theme']) || $_COOKIE['color_theme'] !== 'light') ? 'dark' : 'light';
+
+    // Set/update the cookie
+    setcookie('color_theme', $color_theme, [
+      'expires' => time()+90*86400,
+      'samesite' => 'Strict'
+    ]);
+
+    // Set up some variables for the view
+    $template_variables = [
+      'color_theme' => $color_theme,
+      'return_url' => $data['url']
+    ];
+
+    try {
+      // Parse and validate the redirect URL
+      $parts = parse_url($data['url']??'');
+      if (empty($parts['host']) || empty($parts['scheme'])) {
+        throw new ErrorException('A return URL was not provided.');
+      }
+      if (!isset($parts['port'])) {
+        $parts['port'] = ($parts['scheme'] === 'https') ? 443 : 80;
+      }
+
+      // Store the hostname for use in the view
+      $template_variables['hostname'] = $parts['host'];
+
+      if ($request->getMethod() === 'POST') {
+        // Validate CSRF token
+        if (false === $request->getAttribute('csrf_status')) {
+          throw new Exception('The submitted form was invalid. Please try again.');
+        }
+
+        // Error if we don't have a username and password
+        if (empty($data['username']) || empty($data['password'])) {
+          throw new Exception('Your username and password must be provided.');
+        } else {
+          // Grab our phpBB helper
+          $phpbb = $this->app->getContainer()->get(PHPBBIntegration::class);
+
+          // Attempt to authenticate the player using the provided callsign and password
+          $authentication_attempt = $phpbb->authenticate_player($data['username'], $data['password']);
+          if (!empty($authentication_attempt['error'])) {
+            // TODO: Log error
+            throw new Exception($authentication_attempt['error']);
+          }
+
+          // Try creating a token
+          $token = $this->create_token($authentication_attempt['bzid'], $parts['host'], $parts['port']);
+          if ($token === false) {
+            throw new Exception('There was an error creating an authentication token.');
+          }
+
+          // If we got this far, redirect back to the requesting with along with the token
+          return $response
+            ->withHeader('Location', str_replace(['%TOKEN%', '%USERNAME%'], [urlencode($token), urlencode($authentication_attempt['callsign'])], $data['url']))
+            ->withStatus(302);
+        }
+      }
+    }
+    // Unrecoverable errors
+    catch (ErrorException $e) {
+      $response->getBody()->write($e->getMessage());
+      return $response
+        ->withHeader('Content-Type', 'text/plain');
+    }
+    // Errors that should show the login form again
+    catch (Exception $e) {
+      $template_variables['error'] = $e->getMessage();
+    }
+
+    // Render the form
+    return $twig->render($response, 'weblogin.html.twig', $template_variables);
   }
 
   private function usage(Request $request, Response $response): Response

@@ -16,6 +16,15 @@
         "php-di/slim-bridge": "^3.4",
         "league/config": "^1.2",
         "monolog/monolog": "^3.5",
-        "psr/container": "1.1.1"
+        "psr/container": "1.1.1",
+        "slim/twig-view": "^3.3",
+        "slim/csrf": "^1.4",
+        "twbs/bootstrap": "^5.3"
+    },
+    "scripts": {
+        "post-update-cmd": [
+            "cp vendor/twbs/bootstrap/dist/css/bootstrap.min.css public/css/",
+            "cp vendor/twbs/bootstrap/dist/css/bootstrap.min.css.map public/css/"
+        ]
     }
 }

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en-us" data-bs-theme="{{ color_theme }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="darkreader-lock">
+    <title>BZFlag Web Login</title>
+    <link rel="stylesheet" href="/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/css/weblogin.css">
+</head>
+<body class="bg-secondary-subtle">
+<div class="container" id="main">
+    <form method="post" action="{{ url_for('weblogin') }}">
+        <input type="hidden" name="url" value="{{ return_url | escape('html_attr') }}">
+        <input type="hidden" name="{{ csrf.name_key }}" value="{{ csrf.name }}">
+        <input type="hidden" name="{{ csrf.value_key }}" value="{{ csrf.value }}">
+        <div class="mb-3" id="header">
+            <picture>
+                <source srcset="/images/weblogin_logo.avif" type="image/avif">
+                <source srcset="/images/weblogin_logo.webp" type="image/webp">
+                <img src="/images/weblogin_logo.png" width="184" height="130" alt="BZFlag Weblogin Logo">
+            </picture>
+            <h1>BZFlag Web Login</h1>
+        </div>
+        <div class="mb-3">
+            The website <strong>{{ hostname }}</strong> is requesting a login using your BZFlag account.
+            Your password will NOT be sent to the requesting site.
+        </div>
+        <div class="mb-3 information-hidden">
+            <button type="button" id="show-information" class="btn btn-secondary m-auto">How does this work?</button>
+            <div class="information">
+                When you provide your BZFlag username and password on this form, a single-use and time-limited token is
+                created and passed along to the website mentioned above. This token is either restricted to your IP
+                address or to being used on the requesting website, so it can't be used to impersonate you elsewhere.
+                This way, you do not have to provide a password to a third-party site, and they can verify your identity
+                on BZFlag.
+            </div>
+        </div>
+        <div class="mb-3">
+            <label for="username" class="form-label">Username</label>
+            <input type="text" class="form-control" id="username" name="username" autofocus>
+        </div>
+        <div class="mb-3">
+            <label for="password" class="form-label">Password</label>
+            <input type="password" class="form-control" id="password" name="password">
+        </div>
+        {% if error %}
+        <div class="mb-3 alert alert-warning">{{ error }}</div>
+        {% endif %}
+        <button type="submit" class="btn btn-primary">Log In</button>
+        <button
+                class="theme-toggle{% if color_theme == 'dark' %} theme-toggle--toggled{% endif %}"
+                type="button"
+                title="Toggle theme"
+                aria-label="Toggle theme"
+        >
+            <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    aria-hidden="true"
+                    width="32px"
+                    height="32px"
+                    fill="currentColor"
+                    stroke-linecap="round"
+                    class="theme-toggle__classic"
+                    viewBox="0 0 32 32"
+            >
+                <clipPath id="theme-toggle__classic__cutout">
+                    <path d="M0-5h30a1 1 0 0 0 9 13v24H0Z" />
+                </clipPath>
+                <g clip-path="url(#theme-toggle__classic__cutout)">
+                    <circle cx="16" cy="16" r="9.34" />
+                    <g stroke="currentColor" stroke-width="1.5">
+                        <path d="M16 5.5v-4" />
+                        <path d="M16 30.5v-4" />
+                        <path d="M1.5 16h4" />
+                        <path d="M26.5 16h4" />
+                        <path d="m23.4 8.6 2.8-2.8" />
+                        <path d="m5.7 26.3 2.9-2.9" />
+                        <path d="m5.8 5.8 2.8 2.8" />
+                        <path d="m23.4 23.4 2.9 2.9" />
+                    </g>
+                </g>
+            </svg>
+        </button>
+    </form>
+</div>
+<script src="/js/js-cookie.min.js"></script>
+<script>
+    const theme_toggle = document.querySelector('.theme-toggle');
+    theme_toggle.addEventListener('click', (ev) => {
+        document.documentElement.dataset.bsTheme = (document.documentElement.dataset.bsTheme === 'light') ? 'dark' : 'light';
+        Cookies.set('color_theme', document.documentElement.dataset.bsTheme, {
+            sameSite: 'strict',
+            expires: 90
+        });
+        theme_toggle.classList.toggle('theme-toggle--toggled');
+    });
+
+    document.getElementById('show-information').addEventListener('click', (ev) => {
+        ev.target.parentElement.classList.remove('information-hidden');
+    })
+</script>
+</body>
+</html>
