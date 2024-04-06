@@ -29,6 +29,7 @@ use Exception;
 use League\Config\Configuration;
 use Monolog\Logger;
 use PDO;
+use PDOException;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Random\RandomException;
@@ -39,7 +40,7 @@ class LegacyListController
 {
   private int $token_lifetime;
 
-  public function __construct(private readonly App $app, private readonly PDO $pdo, readonly Configuration $config, readonly Logger $logger)
+  public function __construct(private readonly App $app, private readonly PDO $pdo, readonly Configuration $config, private readonly Logger $logger)
   {
     $this->token_lifetime = $config->get('token_lifetime');
   }
@@ -50,20 +51,14 @@ class LegacyListController
     $data = ($request->getMethod() === 'POST') ? $request->getParsedBody() : $request->getQueryParams();
 
     // Pick an action, any action, no not that one
-    switch($data['action']??'') {
-      case 'LIST':
-        return $this->list($request, $response, $data);
-      case 'GETTOKEN':
-        return $this->get_token($request, $response, $data);
-      case 'ADD':
-        return $this->add_server($request, $response, $data);
-      case 'REMOVE':
-        return $this->remove_server($request, $response, $data);
-      case 'CHECKTOKENS':
-        return $this->check_tokens($request, $response, $data);
-      default:
-        return $this->usage($request, $response);
-    }
+    return match ($data['action'] ?? '') {
+      'LIST' => $this->list($request, $response, $data),
+      'GETTOKEN' => $this->get_token($request, $response, $data),
+      'ADD' => $this->add_server($request, $response, $data),
+      'REMOVE' => $this->remove_server($request, $response, $data),
+      'CHECKTOKENS' => $this->check_tokens($request, $response, $data),
+      default => $this->usage($request, $response),
+    };
   }
 
   private function authenticate_player(array $data, int|null &$bzid = null): string
@@ -121,7 +116,7 @@ class LegacyListController
           $bzid = $authentication_attempt['bzid'];
         }
         return "TOKEN: $token\n";
-      } catch (RandomException|\PDOException $e) {
+      } catch (RandomException|PDOException $e) {
         $this->logger->error('Failed to generate authentication token', ['error' => $e->getMessage()]);
         return "NOTOK: Failed to generate token...\n";
       }
@@ -142,7 +137,7 @@ class LegacyListController
       $statement->bindValue('server_port', $server_port ?? null, PDO::PARAM_INT);
       $statement->execute();
       return $token;
-    } catch (RandomException|\PDOException $e) {
+    } catch (RandomException|PDOException $e) {
       $this->logger->error('Failed to generate authentication token', ['error' => $e->getMessage()]);
       return false;
     }
@@ -186,7 +181,7 @@ class LegacyListController
       $select_token_statement = $this->pdo->prepare('SELECT player_ipv4, server_host, server_port FROM auth_tokens WHERE user_id = :user_id AND token = :token AND TIMESTAMPDIFF(SECOND, when_created, NOW()) < :token_lifetime');
       $select_token_statement->bindValue('token_lifetime', $this->token_lifetime, PDO::PARAM_INT);
       $delete_token_statement = $this->pdo->prepare('DELETE FROM auth_tokens WHERE user_id = :user_id AND token = :token');
-    } catch (\PDOException $e) {
+    } catch (PDOException $e) {
       $this->logger->critical('Failed to prepare one or more statements for processing tokens.', ['error' => $e->getMessage()]);
       return "ERROR: Fatal error when attempting to check tokens.\n";
     }
@@ -275,8 +270,8 @@ class LegacyListController
             }
           }
           $return .= "\n";
-        } catch (\PDOException $e) {
-          $this->logger('Database error reading token', ['token' => $token, 'user_id' => $user_id]);
+        } catch (PDOException $e) {
+          $this->logger->error('Database error reading token', ['token' => $token, 'user_id' => $user_id]);
           $return .= "TOKBAD: $callsign\n";
         }
       }
@@ -327,9 +322,9 @@ class LegacyListController
     if ($bzid) {
       $phpbb_database = $this->config->get('phpbb.database');
       $phpbb_prefix = $this->config->get('phpbb.prefix');
-      $sql = "SELECT s.id, s.host, s.port, s.protocol, s.game_info, s.description FROM servers s LEFT JOIN server_advert_groups ag INNER JOIN {$phpbb_database}.{$phpbb_prefix}user_group ug ON ag.group_id = ug.group_id ON s.id = ag.server_id WHERE (ug.user_id = :bzid OR ag.server_id IS NULL)";
+      $sql = "SELECT s.host, s.port, s.protocol, s.game_info, s.description FROM servers s LEFT JOIN server_advert_groups ag INNER JOIN {$phpbb_database}.{$phpbb_prefix}user_group ug ON ag.group_id = ug.group_id ON s.id = ag.server_id WHERE (ug.user_id = :bzid OR ag.server_id IS NULL)";
     } else {
-      $sql = 'SELECT s.id, s.host, s.port, s.protocol, s.game_info, s.description FROM servers s LEFT JOIN server_advert_groups ag ON s.id = ag.server_id WHERE ag.server_id IS NULL';
+      $sql = 'SELECT s.host, s.port, s.protocol, s.game_info, s.description FROM servers s LEFT JOIN server_advert_groups ag ON s.id = ag.server_id WHERE ag.server_id IS NULL';
     }
 
     if (isset($data['version'])) {
@@ -428,10 +423,16 @@ class LegacyListController
 
               // Attempt to get the server owner name
               $server_owner = $phpbb->get_username_by_user_id($hosting_key['user_id']);
+
+              // If the owner lookup failed, error
+              if (!$server_owner) {
+                $errors[] = 'Owner lookup failure';
+              }
             }
           }
-        } catch (\PDOException $e) {
+        } catch (PDOException $e) {
           // TODO: Log failure
+          $errors[] = 'Owner lookup failure';
         }
       }
     }
@@ -488,7 +489,7 @@ class LegacyListController
             }
           }
         }
-      } catch(\PDOException $e) {
+      } catch(PDOException $e) {
         $this->logger->error('Database error when adding or updating server.', ['error' => $e->getMessage()]);
         $errors[] = 'Database error when adding or updating the server.';
       }
@@ -502,10 +503,19 @@ class LegacyListController
     }
     // Otherwise, tell the server it was added and process any tokens
     else {
-      $response->getBody()->write("ADD: $hostname:$port\n");
+      $body = $response->getBody();
+
+      // Write out the server owner, if there is one
+      if (!empty($server_owner)) {
+        $body->write("OWNER: $server_owner\n");
+      }
+
+      // Write out a confirmation that the server was added
+      $body->write("ADD: $hostname:$port\n");
 
       // Process tokens
-      $response->getBody()->write($this->process_tokens($data));
+      $body->write($this->process_tokens($data));
+
       return $response
         ->withHeader('Content-Type', 'text/plain');
     }
@@ -547,9 +557,9 @@ class LegacyListController
         $statement->bindValue('port', $port, PDO::PARAM_INT);
         $statement->execute();
         $server = $statement->fetch();
-      } catch(\PDOException $e) {
+      } catch(PDOException $e) {
         // TODO: Log failure
-        $errors[] = 'Failed to lookup server. '.$e->getMessage();
+        $errors[] = 'Server not found.';
       }
     }
 
@@ -567,7 +577,7 @@ class LegacyListController
           $statement->execute();
 
           $response->getBody()->write("REMOVE: {$data['nameport']}\n");
-        } catch (\PDOException $e) {
+        } catch (PDOException $e) {
           // TODO: Log failure
           $errors[] = 'Failed to remove server.';
         }
