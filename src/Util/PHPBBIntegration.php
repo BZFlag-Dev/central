@@ -39,6 +39,8 @@ class PHPBBIntegration
 
   public function __construct(Configuration $config, protected PDO $pdo, protected Redis $redis, protected Logger $logger)
   {
+    // TODO: Move most of this to a separate method that is called by methods that require the extra functionality.
+
     // Expose some variables to the global scope so that phpbb files we include can use them
     global $phpbb_root_path, $phpEx, $phpbb_container;
     $phpbb_root_path = $config->get('phpbb.root_path');

@@ -21,8 +21,9 @@ declare(strict_types=1);
  */
 
 use App\Controller\DocumentationController;
-use App\Controller\GameServersController;
 use App\Controller\LegacyListController;
+use App\Controller\v1\GameServersController;
+use App\Controller\v1\SessionsController;
 use DI\Bridge\Slim\Bridge;
 use League\Config\Configuration;
 use Monolog\Handler\StreamHandler;
@@ -30,6 +31,7 @@ use Monolog\Logger;
 use Nette\Schema\Expect;
 use Slim\App;
 use Slim\Csrf\Guard;
+use Slim\Routing\RouteCollectorProxy;
 use Slim\Views\Twig;
 use Slim\Views\TwigMiddleware;
 
@@ -50,6 +52,12 @@ $container->set(Configuration::class, function (): Configuration {
       'max_failed_attempts' => Expect::int(5),
       'attempt_duration' => Expect::int(300),
       'lockout_duration' => Expect::int(1800)
+    ]),
+    'session' => Expect::structure([
+      // Maximum session lifespan to hours (defaults to 90 days)
+      'max_lifespan' => Expect::int(2160),
+      // Maximum idle session time (defaults to 16 days)
+      'max_idle' => Expect::int(384)
     ]),
     'phpbb' => Expect::structure([
       'root_path' => Expect::string()->required(),
@@ -98,8 +106,8 @@ $container->set(Twig::class, function (Configuration $config) {
 $container->set(PDO::class, function (Configuration $config): PDO {
   $c = $config->get('database');
   return new PDO("mysql:dbname={$c['database']};host={$c['host']}", $c['username'], $c['password'], [
-    \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
-    \PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES 'utf8mb4'"
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES 'utf8mb4'"
   ]);
 });
 
@@ -177,29 +185,30 @@ else {
   // Write out usage information. Swagger docs?
   $app->get('/', [DocumentationController::class, 'usage'])->setName('usage');
 
-  //
-  // Game Servers
-  //
+  // v1 API development
+  $app->group('/v1-dev', function (RouteCollectorProxy $group) {
+    //
+    // Game Servers
+    //
 
-  // Get servers
-  $app->get('/servers', [GameServersController::class, 'get_all']);
-  // Publish a new server or update an existing server
-  $app->put('/servers', [GameServersController::class, 'create_or_update']);
-  // Get information about a specific servers
-  $app->get('/servers/{hostname}/{port:[1-9][0-9]*}', [GameServersController::class, 'get_one']);
-  // Delete the specified server from the list
-  $app->delete('/servers/{hostname}/{port:[1-9][0-9]*}', [GameServersController::class, 'delete_one']);
+    // Get servers
+    $group->get('/servers', [GameServersController::class, 'get_many']);
+    // Publish a new server or update an existing server
+    $group->put('/servers/{hostname}/{port:[1-9][0-9]*}', [GameServersController::class, 'create_or_update']);
+    // Delete the specified server from the list
+    $group->delete('/servers/{hostname}/{port:[1-9][0-9]*}', [GameServersController::class, 'delete_one']);
 
-  //
-  // Game Tokens
-  //
+    //
+    // Sessions
+    //
 
-  // User requests a token
-
-  // Server consumes a token
-
-
-
+    // Create a session
+    $group->post('/sessions', [SessionsController::class, 'create']);
+    // Get information about a session
+    $group->get('/sessions/{session_id}', [SessionsController::class, 'get_one']);
+    // Delete a session
+    $group->delete('/sessions/{session_id}', [SessionsController::class, 'delete_one']);
+  });
 }
 
 $app->run();

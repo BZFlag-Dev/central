@@ -1,6 +1,10 @@
 BZFlag Central Services v3
 ==========================
 
+The BZFlag project hosts centralized services for listing public servers and authenticating registered players. This
+project is the third iteration of the central services and aims to provide a legacy interface compatible with the v2
+services and also provide a modern REST API with additional functionality. Another goal is support for CGNAT and, on the
+REST API, IPv6, both of which are pain points with the current v2 authentication system.
 
 Requirements
 ------------
@@ -49,7 +53,7 @@ Database Setup
 --------------
 
 This assumes the phpbb database is 'forum' with a prefix of 'phpbb_', the central services database is 'central', and
-the central services user is 'central'.
+the central services user is 'central'. Adjust the below to match your environment.
 
 ```mysql
 GRANT SELECT, INSERT, UPDATE, DELETE ON central.* TO central@localhost;
@@ -60,6 +64,18 @@ GRANT SELECT, UPDATE ON forum.phpbb_users TO central@localhost;
 
 Import structure.sql into the 'central' database.
 
+Generating REST Documentation
+-----------------------------
+
+The REST API uses PHP 8 Attributes to describe the API and [zircote/swagger-php](https://github.com/zircote/swagger-php)
+to generate an OpenAPI specification. [Swagger UI](https://github.com/swagger-api/swagger-ui?tab=readme-ov-file#general)
+can then be used to display the API specification in a developer friendly way that allows trying it out in a browser. To
+generate the specification, run the following commands:
+
+```bash
+composer -d tools install
+./tools/vendor/bin/openapi src/Controller/v1 -o ../central.bzflag.org-docs/public/v1.yaml -b vendor/autoload.php
+```
 
 License
 -------
@@ -77,3 +93,4 @@ Some files are distributed under different licenses:
 * public/js/js-cookie.min.js: [MIT License](https://github.com/js-cookie/js-cookie/blob/main/LICENSE), Copyright (c) 2018 Copyright 2018 Klaus Hartl, Fagner Brack, GitHub Contributors
 * public/images/weblogin_logo.png (and other formats): [GNU LGPL 2.1](https://github.com/BZFlag-Dev/bzflag/blob/2.4/COPYING.LGPL), Copyright (c) 2024 Tim Riker
 * theme toggle SVG/CSS in views/weblogin.html.twig and public/css/weblogin.css: [MIT License](https://github.com/AlfieJones/theme-toggles/blob/main/LICENSE), Copyright (c) 2021 Alfred Jones
+* public/css/bootstrap.min.css and public/css/bootstrap.min.css.map (copied during `composer install`): [MIT License](https://github.com/twbs/bootstrap/blob/main/LICENSE), Copyright (c) 2011-2024 The Bootstrap Authors

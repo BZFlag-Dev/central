@@ -26,5 +26,8 @@
             "cp vendor/twbs/bootstrap/dist/css/bootstrap.min.css public/css/",
             "cp vendor/twbs/bootstrap/dist/css/bootstrap.min.css.map public/css/"
         ]
+    },
+    "require-dev": {
+        "zircote/swagger-php": "^4.8"
     }
 }
