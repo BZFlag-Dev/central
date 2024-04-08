@@ -23,8 +23,10 @@ declare(strict_types=1);
 namespace App\Controller\v1;
 
 use App\DatabaseHelper\SessionHelper;
+use App\Misc\BZFlagServer;
 use App\Util\PHPBBIntegration;
 use App\Util\Valid;
+use Exception;
 use League\Config\Configuration;
 use Monolog\Logger;
 use OpenApi\Attributes as OA;
@@ -265,7 +267,12 @@ readonly class GameServersController
       return $response->withStatus(401);
     }
 
-    // TODO: Verify that we can connect to the server (on all addresses that the hostname resolves to?)
+    // Verify that we can connect to the server
+    try {
+      new BZFlagServer($hostname, $port, $data['protocol']);
+    } catch (Exception $e) {
+      $errors[] = 'Unable to connect to server.';
+    }
 
     // If we have no errors up to this point, try to add/update the server
     if (empty($errors)) {
