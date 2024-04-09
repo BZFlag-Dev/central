@@ -169,7 +169,7 @@ if ($log_config['log_other_errors']) {
   $error_logger->pushProcessor(new \Monolog\Processor\IntrospectionProcessor());
 }
 
-$errorMiddleware = $app->addErrorMiddleware($config->get('debug'), true, true, $error_logger??null);
+$errorMiddleware = $app->addErrorMiddleware($config->get('debug'), true, true, $error_logger ?? null);
 
 // TODO: Delete expired authentication tokens and stale servers
 

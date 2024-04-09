@@ -110,8 +110,8 @@ class LegacyListController
         $statement->bindValue('user_id', $authentication_attempt['bzid'], PDO::PARAM_INT);
         $statement->bindValue('token', $token);
         $statement->bindValue('player_ipv4', $_SERVER['REMOTE_ADDR']);
-        $statement->bindValue('server_host', $server_host??null);
-        $statement->bindValue('server_port', $server_port??null, PDO::PARAM_INT);
+        $statement->bindValue('server_host', $server_host ?? null);
+        $statement->bindValue('server_port', $server_port ?? null, PDO::PARAM_INT);
         $statement->execute();
         if (func_num_args() > 1) {
           $bzid = $authentication_attempt['bzid'];
@@ -305,7 +305,7 @@ class LegacyListController
       return $host === $ip;
     }
 
-    $dns = dns_get_record($host, DNS_A|DNS_AAAA);
+    $dns = dns_get_record($host, DNS_A | DNS_AAAA);
     foreach($dns as $record) {
       if (($record['type'] === 'A' && $record['ip'] === $ip) || ($record['type'] === 'AAAA' && $record['ipv6'] === $ip)) {
         return true;
@@ -421,6 +421,8 @@ class LegacyListController
         $errors[] = 'Invalid port in public address.';
       }
     }
+
+    // TODO: Should we verify that the request IP exists as an A or AAAA record in the resolved hostname?
 
     // Protocol version
     if (empty($data['version']) || !Valid::serverProtocol($data['version'])) {
@@ -666,7 +668,7 @@ class LegacyListController
 
     // Set/update the cookie
     setcookie('color_theme', $color_theme, [
-      'expires' => time()+90*86400,
+      'expires' => time() + 90 * 86400,
       'samesite' => 'Strict'
     ]);
 
@@ -678,7 +680,7 @@ class LegacyListController
 
     try {
       // Parse and validate the redirect URL
-      $parts = parse_url($data['url']??'');
+      $parts = parse_url($data['url'] ?? '');
       if (empty($parts['host']) || empty($parts['scheme'])) {
         throw new ErrorException('A return URL was not provided.');
       }
