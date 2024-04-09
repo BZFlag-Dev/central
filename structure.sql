@@ -7,6 +7,7 @@ CREATE TABLE servers (
     game_info VARCHAR(255) NOT NULL,
     world_hash VARCHAR(255) NULL,
     description VARCHAR(255) NULL,
+    owner VARCHAR(255) NULL,
     when_updated TIMESTAMP DEFAULT NOW() ON UPDATE NOW(),
     UNIQUE(host, port)
 );

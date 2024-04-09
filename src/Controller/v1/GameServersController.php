@@ -87,9 +87,9 @@ readonly class GameServersController
     if ($user_id) {
       $phpbb_database = $this->config->get('phpbb.database');
       $phpbb_prefix = $this->config->get('phpbb.prefix');
-      $sql = "SELECT s.host as hostname, s.port, s.protocol, s.game_info, s.world_hash, s.description FROM servers s LEFT JOIN server_advert_groups ag INNER JOIN {$phpbb_database}.{$phpbb_prefix}user_group ug ON ag.group_id = ug.group_id ON s.id = ag.server_id WHERE (ug.user_id = :user_id OR ag.server_id IS NULL)";
+      $sql = "SELECT s.host as hostname, s.port, s.protocol, s.game_info, s.world_hash, s.description, s.owner FROM servers s LEFT JOIN server_advert_groups ag INNER JOIN {$phpbb_database}.{$phpbb_prefix}user_group ug ON ag.group_id = ug.group_id ON s.id = ag.server_id WHERE (ug.user_id = :user_id OR ag.server_id IS NULL)";
     } else {
-      $sql = 'SELECT s.host as hostname, s.port, s.protocol, s.game_info, s.world_hash, s.description FROM servers s LEFT JOIN server_advert_groups ag ON s.id = ag.server_id WHERE ag.server_id IS NULL';
+      $sql = 'SELECT s.host as hostname, s.port, s.protocol, s.game_info, s.world_hash, s.description, s.owner FROM servers s LEFT JOIN server_advert_groups ag ON s.id = ag.server_id WHERE ag.server_id IS NULL';
     }
 
     // Support filtering on the protocol and hostname
@@ -271,7 +271,12 @@ readonly class GameServersController
     try {
       new BZFlagServer($hostname, $port, $data['protocol']);
     } catch (Exception $e) {
-      $errors[] = 'Unable to connect to server.';
+      $this->logger->error($e->getMessage(), [
+        'hostname' => $hostname,
+        'port' => $port,
+        'protocol' => $data['protocol']
+      ]);
+      $errors[] = 'Failed to connect to or verify running server.';
     }
 
     // If we have no errors up to this point, try to add/update the server
@@ -293,16 +298,17 @@ readonly class GameServersController
           } elseif ($existing['protocol'] !== $data['protocol']) {
             $errors[] = 'Protocol version mismatch when updating server.';
           } else {
-            $sta = $this->pdo->prepare("UPDATE servers SET game_info = :game_info, world_hash = :world_hash, description = :description, when_updated = NOW() WHERE id = :id");
+            $sta = $this->pdo->prepare("UPDATE servers SET game_info = :game_info, world_hash = :world_hash, description = :description, owner = :owner, when_updated = NOW() WHERE id = :id");
             $sta->bindValue('id', $existing['id'], PDO::PARAM_INT);
             $sta->bindValue('game_info', $data['game_info']);
             $sta->bindValue('world_hash', $data['world_hash']);
             $sta->bindValue('description', $data['description']);
+            $sta->bindValue('owner', $server_owner);
             $sta->execute();
           }
         } // Otherwise, insert a new server entry
         else {
-          $sta = $this->pdo->prepare("INSERT INTO servers (host, port, hosting_key_id, protocol, game_info, world_hash, description) VALUES (:hostname, :port, :hosting_key_id, :protocol, :game_info, :world_hash, :description)");
+          $sta = $this->pdo->prepare("INSERT INTO servers (host, port, hosting_key_id, protocol, game_info, world_hash, description, owner) VALUES (:hostname, :port, :hosting_key_id, :protocol, :game_info, :world_hash, :description, :owner)");
           $sta->bindValue('hostname', $hostname);
           $sta->bindValue('port', $port, PDO::PARAM_INT);
           $sta->bindValue('hosting_key_id', $hosting_key['id'], PDO::PARAM_INT);
@@ -310,6 +316,7 @@ readonly class GameServersController
           $sta->bindValue('game_info', $data['game_info']);
           $sta->bindValue('world_hash', $data['world_hash']);
           $sta->bindValue('description', $data['description']);
+          $sta->bindValue('owner', $server_owner);
 
           // If the server was created, and the advert groups is non-empty and does not contain the EVERYONE group,
           // then store the advert groups.

@@ -37,14 +37,14 @@ class BZFlagServer
   {
     $this->socket = fsockopen($hostname_or_ip, $port, $errno, $errstr, 5);
     if (!$this->socket) {
-      throw new Exception("Failed to connect to server");
+      throw new Exception("Unable to open socket to BZFlag server");
     }
 
     // For versions other than 1.10 and 2.0, tell the server that we want to use the BZFlag protocol
     if ($expected_protocol !== 'BZFS0026' && $expected_protocol !== 'BZFS1910') {
       $result = fwrite($this->socket, "BZFLAG\r\n\r\n");
       if ($result === false || $result != strlen("BZFLAG\r\n\r\n")) {
-        throw new Exception("Failed to connect to server");
+        throw new Exception("Unable to write magic string");
       }
     }
 
@@ -59,12 +59,12 @@ class BZFlagServer
     while (strlen($buffer) < 9) {
       // If we've exceeded our packet receive timeout, bail out
       if (microtime(true) > $read_start + 4) {
-        throw new Exception("Failed to connect to server");
+        throw new Exception("Timed out reading protocol version");
       }
 
       $chunk = fread($this->socket, 9 - strlen($buffer));
       if ($chunk === false) {
-        throw new Exception("Failed to connect to server");
+        throw new Exception("Received an error when reading from socket");
       } else {
         $buffer .= $chunk;
         usleep(15000);

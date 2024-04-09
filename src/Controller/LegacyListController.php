@@ -22,6 +22,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Misc\BZFlagServer;
 use App\Util\PHPBBIntegration;
 use App\Util\Valid;
 use ErrorException;
@@ -317,14 +318,26 @@ class LegacyListController
   private function list(Request $request, Response $response, array $data): Response
   {
     $body = $response->getBody();
-    $body->write($this->authenticate_player($data, $bzid));
+
+    // Default to the plain list format
+    if (!isset($data['listformat'])) {
+      $data['listformat'] = 'plain';
+    }
+
+    // Authenticate the player
+    $auth = $this->authenticate_player($data, $bzid);
+
+    // For the plain list format, write out the auth line
+    if ($data['listformat'] === 'plain') {
+      $body->write($auth);
+    }
 
     if ($bzid) {
       $phpbb_database = $this->config->get('phpbb.database');
       $phpbb_prefix = $this->config->get('phpbb.prefix');
-      $sql = "SELECT s.host, s.port, s.protocol, s.game_info, s.description FROM servers s LEFT JOIN server_advert_groups ag INNER JOIN {$phpbb_database}.{$phpbb_prefix}user_group ug ON ag.group_id = ug.group_id ON s.id = ag.server_id WHERE (ug.user_id = :bzid OR ag.server_id IS NULL)";
+      $sql = "SELECT s.host, s.port, s.protocol, s.game_info, s.description, s.owner FROM servers s LEFT JOIN server_advert_groups ag INNER JOIN {$phpbb_database}.{$phpbb_prefix}user_group ug ON ag.group_id = ug.group_id ON s.id = ag.server_id WHERE (ug.user_id = :bzid OR ag.server_id IS NULL)";
     } else {
-      $sql = 'SELECT s.host, s.port, s.protocol, s.game_info, s.description FROM servers s LEFT JOIN server_advert_groups ag ON s.id = ag.server_id WHERE ag.server_id IS NULL';
+      $sql = 'SELECT s.host, s.port, s.protocol, s.game_info, s.description, s.owner FROM servers s LEFT JOIN server_advert_groups ag ON s.id = ag.server_id WHERE ag.server_id IS NULL';
     }
 
     if (isset($data['version'])) {
@@ -338,8 +351,35 @@ class LegacyListController
       $sta->bindValue('protocol', $data['version']);
     }
     $sta->execute();
-    while($row = $sta->fetch()) {
-      $body->write("{$row['host']}:{$row['port']} {$row['protocol']} {$row['game_info']} 127.0.0.1 {$row['description']}\n");
+
+    if ($data['listformat'] === 'lua') {
+      $body->write("return {\n");
+      $body->write("fields = { 'version', 'hexcode', 'addr', 'ipaddr', 'title', 'owner' },\n");
+      $body->write("servers = {\n");
+      while ($row = $sta->fetch()) {
+        // TODO: Retrieve the owner of the server
+        $body->write("{\"" . addslashes($row['protocol']) . "\",\"" . addslashes($row['game_info']) . "\",\"" . addslashes("{$row['host']}:{$row['port']}") . "\",\"127.0.0.1\",\"" . addslashes($row['description'] ?? '') . "\",\"" . addslashes($row['owner'] ?? '') . "\"},\n");
+      }
+      $body->write("}\n}\n");
+    } elseif ($data['listformat'] === 'json') {
+      $body->write("{\n");
+      $body->write("\"fields\": [\"version\",\"hexcode\",\"addr\",\"ipaddr\",\"title\",\"owner\"],\n");
+      $body->write("\"servers\": [");
+      $first = true;
+      while ($row = $sta->fetch()) {
+        // TODO: Retrieve the owner of the server
+        if ($first) {
+          $first = false;
+        } else {
+          $body->write(",");
+        }
+        $body->write("\n[\"" . addslashes($row['protocol']) . "\",\"" . addslashes($row['game_info']) . "\",\"" . addslashes("{$row['host']}:{$row['port']}") . "\",\"127.0.0.1\",\"" . addslashes($row['description'] ?? '') . "\",\"" . addslashes($row['owner'] ?? '') . "\"]");
+      }
+      $body->write("\n]\n}\n");
+    } else {
+      while ($row = $sta->fetch()) {
+        $body->write("{$row['host']}:{$row['port']} {$row['protocol']} {$row['game_info']} 127.0.0.1 {$row['description']}\n");
+      }
     }
 
     return $response
@@ -437,6 +477,18 @@ class LegacyListController
       }
     }
 
+    // Verify that we can connect to the server
+    try {
+      new BZFlagServer($hostname, (int)$port, $data['version']);
+    } catch (Exception $e) {
+      $this->logger->error($e->getMessage(), [
+        'hostname' => $hostname,
+        'port' => $port,
+        'protocol' => $data['version']
+      ]);
+      $errors[] = 'Failed to connect to or verify running server.';
+    }
+
     // If we have no errors up to this point, add the server
     if (empty($errors)) {
       try {
@@ -454,21 +506,23 @@ class LegacyListController
           } elseif ($existing['protocol'] !== $data['version']) {
             $errors[] = 'Protocol version mismatch when updating server.';
           } else {
-            $sta = $this->pdo->prepare("UPDATE servers SET game_info = :game_info, description = :description, when_updated = NOW() WHERE id = :id");
+            $sta = $this->pdo->prepare("UPDATE servers SET game_info = :game_info, description = :description, owner = :owner, when_updated = NOW() WHERE id = :id");
             $sta->bindValue('id', $existing['id'], PDO::PARAM_INT);
             $sta->bindValue('game_info', $data['gameinfo']);
             $sta->bindValue('description', $data['title']);
+            $sta->bindValue('owner', $server_owner ?? null);
             $sta->execute();
           }
         } // Otherwise, insert a new server entry
         else {
-          $sta = $this->pdo->prepare("INSERT INTO servers (host, port, hosting_key_id, protocol, game_info, description) VALUES (:host, :port, :hosting_key_id, :protocol, :game_info, :description)");
+          $sta = $this->pdo->prepare("INSERT INTO servers (host, port, hosting_key_id, protocol, game_info, description, owner) VALUES (:host, :port, :hosting_key_id, :protocol, :game_info, :description, :owner)");
           $sta->bindValue('host', $hostname);
           $sta->bindValue('port', $port, PDO::PARAM_INT);
           $sta->bindValue('hosting_key_id', $hosting_key['id'] ?? null, PDO::PARAM_INT);
           $sta->bindValue('protocol', $data['version']);
           $sta->bindValue('game_info', $data['gameinfo']);
           $sta->bindValue('description', $data['title']);
+          $sta->bindValue('owner', $server_owner ?? null);
 
           if ($sta->execute() && !empty($data['advertgroups'])) {
             $advert_groups = explode(',', $data['advertgroups']);
