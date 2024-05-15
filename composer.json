@@ -16,7 +16,7 @@
         "php-di/slim-bridge": "^3.4",
         "league/config": "^1.2",
         "monolog/monolog": "^3.5",
-        "psr/container": "1.1.1",
+        "psr/container": "2.0.2",
         "slim/twig-view": "^3.3",
         "slim/csrf": "^1.4",
         "twbs/bootstrap": "^5.3"
