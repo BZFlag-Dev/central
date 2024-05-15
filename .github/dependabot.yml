@@ -11,3 +11,5 @@ updates:
       interval: "weekly"
     allow:
       - dependency-type: "all"
+    ignore:
+      - dependency-name: "psr/container"
