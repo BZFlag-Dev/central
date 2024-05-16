@@ -344,8 +344,7 @@ class LegacyListController
     // Fetch the servers
     $game_servers_helper = $this->app->getContainer()->get(GameServerHelper::class);
     $servers = $game_servers_helper->get_many(
-      protocol: $data['version'],
-      hostname: $data['hostname'], // TODO: Remove the (new) ability to filter on a hostname for the legacy list
+      protocol: $data['version'] ?? null,
       user_id: $user_id,
     );
 
