@@ -54,9 +54,9 @@ $container->set(Configuration::class, function (): Configuration {
       'lockout_duration' => Expect::int(1800)
     ]),
     'session' => Expect::structure([
-      // Maximum session lifespan to hours (defaults to 90 days)
+      // Maximum session lifespan in hours (defaults to 90 days)
       'max_lifespan' => Expect::int(2160),
-      // Maximum idle session time (defaults to 16 days)
+      // Maximum idle session time in hours (defaults to 16 days)
       'max_idle' => Expect::int(384)
     ]),
     'phpbb' => Expect::structure([
