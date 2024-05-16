@@ -48,6 +48,8 @@ class SessionHelper
   // Create a new session
   public function create(int $user_id, string $username): array|null
   {
+    // TODO: Should there be single-use sessions that expire after generating a single token? That could be useful for
+    //   clients like bzadmin that don't store any state and only need to authenticate once.
     try {
       // Generate a session ID
       $session_id = bin2hex(random_bytes(32));
@@ -77,6 +79,9 @@ class SessionHelper
   // Get information about a session
   public function get_one(string $session_id): array|null
   {
+    // Delete expired sessions
+    $this->delete_expired();
+
     try {
       // Look up session, verifying that the session isn't expired or stale
       $statement = $this->pdo->prepare('SELECT user_id, username, DATE_ADD(when_created, INTERVAL :lifespan_hours HOUR) as session_expiration FROM user_sessions WHERE session_id = :session_id AND DATE_ADD(when_created, INTERVAL :lifespan_hours HOUR) > NOW() AND DATE_ADD(last_used, INTERVAL :idle_hours HOUR) > NOW()');
@@ -118,6 +123,18 @@ class SessionHelper
     } catch (PDOException $e) {
       $this->logger->error('Failed to delete a session', ['error' => $e->getMessage()]);
       return false;
+    }
+  }
+
+  public function delete_expired(): void
+  {
+    try {
+      $statement = $this->pdo->prepare('DELETE FROM user_sessions WHERE DATE_ADD(when_created, INTERVAL :lifespan_hours HOUR) <= NOW() OR DATE_ADD(last_used, INTERVAL :idle_hours HOUR) <= NOW()');
+      $statement->bindValue('lifespan_hours', $this->session_max_lifespan, PDO::PARAM_INT);
+      $statement->bindValue('idle_hours', $this->session_max_idle, PDO::PARAM_INT);
+      $statement->execute();
+    } catch (PDOException $e) {
+      $this->logger->error('Failed to delete expired sessions', ['error' => $e->getMessage()]);
     }
   }
 }
