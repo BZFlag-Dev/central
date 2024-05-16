@@ -49,6 +49,14 @@ class LegacyListController
 
   public function db(Request $request, Response $response): Response
   {
+    // Ensure that only IPv4 clients can access this in case of misconfiguration or someone modifying their hosts file
+    if (filter_var($_SERVER['REMOTE_ADDR'], FILTER_VALIDATE_IP, ['flags' => FILTER_FLAG_IPV4]) === false) {
+      $response->getBody()->write("ERROR: The legacy bzfls can only be accessed over IPv4\n");
+      return $response
+        ->withHeader('Content-Type', 'text/plain')
+        ->withStatus(400);
+    }
+
     // Grab the request data for this request
     $data = ($request->getMethod() === 'POST') ? $request->getParsedBody() : $request->getQueryParams();
 
@@ -302,7 +310,7 @@ class LegacyListController
   private function dns_has_ip($host, $ip): bool
   {
     // If the host is actually an IPv4 address, just compare that to the passed in IP.
-    if (filter_var($host, FILTER_VALIDATE_IP, ['flags' => FILTER_FLAG_IPV4])) {
+    if (filter_var($host, FILTER_VALIDATE_IP, ['flags' => FILTER_FLAG_IPV4]) !== false) {
       return $host === $ip;
     }
 
@@ -398,7 +406,10 @@ class LegacyListController
       }
     }
 
-    // TODO: Should we verify that the request IP exists as an A or AAAA record in the resolved hostname?
+    // Verify that the IP of this HTTP requests is contained in the DNS response of the hostname
+    if (!empty($hostname) && !$this->dns_has_ip($hostname, $_SERVER['REMOTE_ADDR'])) {
+      $errors[] = 'Specified hostname does not contain the the requesting address.';
+    }
 
     // Protocol version
     if (empty($data['version']) || !Valid::serverProtocol($data['version'])) {
@@ -610,6 +621,14 @@ class LegacyListController
 
   public function weblogin(Request $request, Response $response, Twig $twig): Response
   {
+    // Ensure that only IPv4 clients can access this in case of misconfiguration or someone modifying their hosts file
+    if (filter_var($_SERVER['REMOTE_ADDR'], FILTER_VALIDATE_IP, ['flags' => FILTER_FLAG_IPV4]) === false) {
+      $response->getBody()->write("ERROR: The legacy weblogin can only be accessed over IPv4\n");
+      return $response
+        ->withHeader('Content-Type', 'text/plain')
+        ->withStatus(400);
+    }
+
     // Grab the request data for this request
     $data = ($request->getMethod() === 'POST') ? $request->getParsedBody() : $request->getQueryParams();
 
