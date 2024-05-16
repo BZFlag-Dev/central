@@ -467,15 +467,17 @@ class LegacyListController
     }
 
     // Verify that we can connect to the server
-    try {
-      new BZFlagServer($hostname, (int)$port, $data['version']);
-    } catch (Exception $e) {
-      $this->logger->error($e->getMessage(), [
-        'hostname' => $hostname,
-        'port' => $port,
-        'protocol' => $data['version']
-      ]);
-      $errors[] = 'Failed to connect to or verify running server.';
+    if (empty($errors)) {
+      try {
+        new BZFlagServer($hostname, (int)$port, $data['version']);
+      } catch (Exception $e) {
+        $this->logger->error($e->getMessage(), [
+          'hostname' => $hostname,
+          'port' => $port,
+          'protocol' => $data['version']
+        ]);
+        $errors[] = 'Failed to connect to or verify running server.';
+      }
     }
 
     // If we have no errors up to this point, add the server
