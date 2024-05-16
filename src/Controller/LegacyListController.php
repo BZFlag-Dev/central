@@ -712,7 +712,7 @@ class LegacyListController
 
   private function usage(Request $request, Response $response): Response
   {
-    $response->getBody()->write('Put usage info here');
-    return $response;
+    $twig = $this->app->getContainer()->get(Twig::class);
+    return $twig->render($response, 'legacy_usage.html.twig');
   }
 }

@@ -175,7 +175,7 @@ $errorMiddleware = $app->addErrorMiddleware($config->get('debug'), true, true, $
 
 // Second generation server list compatability
 if ($_SERVER['SERVER_NAME'] === $config->get('legacy_host')) {
-  $app->map(['GET', 'POST'], '/db/', [LegacyListController::class, 'db']);
+  $app->map(['GET', 'POST'], '/db/', [LegacyListController::class, 'db'])->setName('legacy_bzfls');
   $app->map(['GET', 'POST'], '/bzfls.php', [LegacyListController::class, 'db']);
   $app->map(['GET', 'POST'], '/weblogin.php', [LegacyListController::class, 'weblogin'])
     ->setName('weblogin')->add(Guard::class);

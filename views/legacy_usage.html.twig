@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en-us" data-bs-theme="dark">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="darkreader-lock">
+    <title>BZFlag Web Login</title>
+    <link rel="stylesheet" href="/css/bootstrap.min.css">
+</head>
+<body class="bg-secondary-subtle">
+<div class="container mt-3">
+    <h1>Legacy List Server (v2) Usage</h1>
+    <div class="mb-5">This list server (bzfls) provides a server list and player authentication via tokens. It is used by BZFlag client versions 1.10.x, 2.0.x, and 2.4.x, plus some intermediate and unreleased development versions.</div>
+
+    <form action="{{ url_for('legacy_bzfls') }}" method="post" enctype="application/x-www-form-urlencoded" id="form">
+        <div class="mb-5">
+            <label for="action" class="form-label">action - The type of operation to be run</label>
+            <select class="form-select" id="action" name="action">
+                <option value="LIST">LIST - List servers</option>
+                <option value="GETTOKEN">GETTOKEN - Get a player authentication token</option>
+                <option value="ADD">ADD - Add or update a server on the list</option>
+                <option value="REMOVE">REMOVE - Remove a server from the list</option>
+                <option value="CHECKTOKENS">CHECKTOKENS - Check one or more player authentication tokens</option>
+            </select>
+        </div>
+
+        <div class="mb-3 bzfls-option" data-actions="LIST">
+            <label for="listformat" class="form-label">listformat - This selects different output formats for the server list, with lua and json being akin to CSV. A better JSON output is available through the v3 bzfls.</label>
+            <select class="form-select" id="listformat" name="listformat">
+                <option value="plain">plain</option>
+                <option value="lua">lua</option>
+                <option value="json">json</option>
+            </select>
+        </div>
+
+        <div class="mb-3 bzfls-option" data-actions="GETTOKEN,ADD,REMOVE,CHECKTOKENS">
+            <label for="nameport" class="form-label">nameport - The host or IPv4 address, and optionally the port, in <code>host</code> or <code>host:port</code> format</label>
+            <input type="text" class="form-control" id="nameport" name="nameport">
+        </div>
+
+        <div class="mb-3 bzfls-option" data-actions="LIST,ADD">
+            <label for="version" class="form-label">version - The protocol version of the client/server, an 8 character string with the first 4 being uppercase letters (A-Z) and the last 4 being numeric digits</label>
+            <input type="text" class="form-control" id="version" name="version">
+        </div>
+
+        <div class="mb-3 bzfls-option" data-actions="LIST,GETTOKEN">
+            <label for="callsign" class="form-label">callsign - The player name</label>
+            <input type="text" class="form-control" id="callsign" name="callsign">
+        </div>
+
+        <div class="mb-3 bzfls-option" data-actions="LIST,GETTOKEN">
+            <label for="password" class="form-label">password - The player's password</label>
+            <input type="password" class="form-control" id="password" name="password">
+        </div>
+
+        <div class="mb-3 bzfls-option" data-actions="LIST,GETTOKEN,ADD,REMOVE,CHECKTOKENS">
+            <label for="build" class="form-label">build - The build string of the client/server</label>
+            <input type="text" class="form-control" id="build" name="build">
+        </div>
+
+        <div class="mb-3 bzfls-option" data-actions="ADD">
+            <label for="gameinfo" class="form-label">gameinfo - A hexadecimal string of information about a game server, containing information such as the game mode/options and player counts/limits</label>
+            <input type="text" class="form-control" id="gameinfo" name="gameinfo">
+        </div>
+
+        <div class="mb-3 bzfls-option" data-actions="ADD">
+            <label for="title" class="form-label">title - The public description of a server</label>
+            <input type="text" class="form-control" id="title" name="title">
+        </div>
+
+        <div class="mb-3 bzfls-option" data-actions="ADD,REMOVE">
+            <label for="key" class="form-label">key - The server hosting key that is associated with the hostname specified in the <code>nameport</code></label>
+            <input type="text" class="form-control" id="key" name="key">
+        </div>
+
+        <div class="mb-3 bzfls-option" data-actions="ADD">
+            <label for="advertgroups" class="form-label">advertgroups - A comma separated list of groups that a server should advertise to, with groups being in the ORGANIZATION.GROUP format</label>
+            <input type="text" class="form-control" id="advertgroups" name="advertgroups">
+        </div>
+
+        <div class="mb-3 bzfls-option" data-actions="ADD,CHECKTOKENS">
+            <label for="groups" class="form-label">groups - A list of groups, separated by \r\n</label>
+            <textarea class="form-control" id="groups" name="groups"></textarea>
+        </div>
+
+        <div class="mb-3 bzfls-option" data-actions="ADD,CHECKTOKENS">
+            <label for="checktokens" class="form-label">checktokens - A list of tokens to check, in the format <code>callsign@ip=token</code> or <code>callsign=token</code>, separated by \r\n (though all uses seem to just check a single token)</label>
+            <textarea class="form-control" id="checktokens" name="checktokens"></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Run Request</button> <button type="reset" class="btn btn-outline-danger">Reset</button>
+    </form>
+</div>
+
+<div class="container mt-3">
+    <h2>cURL Request:</h2>
+    <div id="curl" class="font-monospace small"></div>
+</div>
+
+<div class="container mt-3 d-none" id="output_container">
+    <h2>Output:</h2>
+    <pre><code id="output"></code></pre>
+</div>
+
+<script>
+    const action = document.getElementById('action');
+    const curl = document.getElementById('curl');
+    const output_container = document.getElementById('output_container');
+    const output = document.getElementById('output');
+    const option_containers = document.getElementsByClassName('bzfls-option');
+    const form = document.getElementById('form');
+
+    function updateOptions() {
+        const a = action.value;
+        for (let i = 0; i < option_containers.length; i++) {
+            option_containers[i].classList.toggle('d-none', !option_containers[i].dataset.actions.split(',').includes(a));
+        }
+    }
+    updateOptions();
+    action.addEventListener('change', updateOptions);
+
+    function getData() {
+        // Populate form data for any non-empty fields allowed for this action
+        let data = new URLSearchParams();
+        const a = action.value;
+        data.append('action', a);
+        for (let i = 0; i < option_containers.length; i++) {
+            if (option_containers[i].dataset.actions.split(',').includes(a)) {
+                const el = option_containers[i].querySelector('input, textarea, select');
+                if (el && el.value.length > 0 && (el.name !== 'listformat' || el.value !== "plain")) {
+                    data.append(el.name, el.value);
+                }
+            }
+        }
+
+        return data;
+    }
+
+    function updateCurl() {
+        curl.innerText = `curl 'https://my.bzflag.porteighty.org/db/' -H 'Content-Type: application/x-www-form-urlencoded' --data-raw '${getData().toString()}'`;
+    }
+    updateCurl();
+    form.addEventListener('keyup', updateCurl);
+    form.addEventListener('change', updateCurl);
+
+    function hideOutput() {
+        output_container.classList.toggle('d-none', true);
+    }
+
+    form.addEventListener('keyup', hideOutput);
+    form.addEventListener('change', hideOutput);
+
+    form.addEventListener('submit', async (ev) => {
+        // Prevent the form from submitting normally
+        ev.preventDefault();
+
+        hideOutput();
+
+        // Submit the request
+        let response = await fetch(ev.target.getAttribute('action'), {
+            method: 'POST',
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            body: getData()
+        });
+
+        // Show the output from the request
+        output.innerText = await response.text();
+        output_container.classList.toggle('d-none', false);
+    });
+
+    form.addEventListener('reset', () => {
+        // Update which options show and the cURL line after the form resets
+        setTimeout(updateOptions);
+        setTimeout(updateCurl);
+    })
+</script>
+</body>
+</html>
