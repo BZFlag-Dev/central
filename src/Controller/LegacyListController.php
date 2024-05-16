@@ -22,6 +22,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\DatabaseHelper\GameServerHelper;
 use App\Misc\BZFlagServer;
 use App\Util\PHPBBIntegration;
 use App\Util\Valid;
@@ -72,18 +73,10 @@ class LegacyListController
     // Split nameport into host and port parts
     // TODO: Test if $server_host isn't defined by the below
     if (!empty($data['nameport'])) {
-      $parts = parse_url("bzfs://{$data['nameport']}");
-      // If the host/port is seriously malformed, just nuke the value
-      if ($parts === false) {
-        unset($data['nameport']);
-      } else {
-        $server_host = $parts['host'];
-        $server_port = $parts['port'] ?? 5154;
+      try {
+        [$server_host, $server_port] = $this->split_nameport($data['nameport']);
+      } catch (Exception) {
       }
-      unset($parts);
-    } elseif (!empty($data['host'])) {
-      $server_host = $data['host'];
-      $server_port = $data['port'] ?? 5154;
     }
 
     // Grab our phpBB helper
@@ -146,24 +139,20 @@ class LegacyListController
 
   private function process_tokens(array $data): string
   {
+    if (!isset($data['checktokens'])) {
+      return '';
+    }
+
     // Information to return
     $return = '';
 
     // Split nameport into host and port parts
     // TODO: Test if $server_host isn't defined by the below
     if (!empty($data['nameport'])) {
-      $parts = parse_url("bzfs://{$data['nameport']}");
-      // If the host/port is seriously malformed, just nuke the value
-      if ($parts === false) {
-        unset($data['nameport']);
-      } else {
-        $server_host = $parts['host'];
-        $server_port = $parts['port'] ?? 5154;
+      try {
+        [$server_host, $server_port] = $this->split_nameport($data['nameport']);
+      } catch (Exception) {
       }
-      unset($parts);
-    } elseif (!empty($data['host'])) {
-      $server_host = $data['host'];
-      $server_port = (!empty($data['port'])) ? (int)$data['port'] : 5154;
     }
 
     // Get the phpbb helper
@@ -281,21 +270,33 @@ class LegacyListController
     return $return;
   }
 
+  /**
+   * @throws Exception
+   */
   private function split_nameport($nameport): array
   {
-    // Default to port 5154
-    $port = '5154';
+    // Split the nameport into parts
+    $parts = parse_url("bzfs://{$nameport}");
 
-    $colonPos = strrpos($nameport, ':');
-    // If there isn't a port in the public address, assume it's just a hostname
-    if ($colonPos === false) {
-      $hostname = $nameport;
-    } else {
-      $hostname = substr($nameport, 0, $colonPos);
-      $port = substr($nameport, $colonPos + 1);
+    // If the host/port is seriously malformed, throw an exception
+    if ($parts === false) {
+      throw new Exception('Unable to parse nameport.');
+    }
+    foreach(array_keys($parts) as $key) {
+      if (!in_array($key, ['scheme', 'host', 'port'], true)) {
+        throw new Exception('Invalid nameport value.');
+      }
     }
 
-    return [$hostname, $port];
+    if (!isset($parts['host']) || !Valid::serverHostname($parts['host'])) {
+      throw new Exception('Invalid hostname in public address.');
+    };
+
+    if (isset($parts['port']) && !Valid::serverPort($parts['port'])) {
+      throw new Exception('Invalid port in public address.');
+    }
+
+    return [$parts['host'], $parts['port'] ?? 5154];
   }
 
   private function dns_has_ip($host, $ip): bool
@@ -325,40 +326,28 @@ class LegacyListController
     }
 
     // Authenticate the player
-    $auth = $this->authenticate_player($data, $bzid);
+    $auth = $this->authenticate_player($data, $user_id);
 
     // For the plain list format, write out the auth line
     if ($data['listformat'] === 'plain') {
       $body->write($auth);
     }
 
-    if ($bzid) {
-      $phpbb_database = $this->config->get('phpbb.database');
-      $phpbb_prefix = $this->config->get('phpbb.prefix');
-      $sql = "SELECT s.host, s.port, s.protocol, s.game_info, s.description, s.owner FROM servers s LEFT JOIN server_advert_groups ag INNER JOIN {$phpbb_database}.{$phpbb_prefix}user_group ug ON ag.group_id = ug.group_id ON s.id = ag.server_id WHERE (ug.user_id = :bzid OR ag.server_id IS NULL)";
-    } else {
-      $sql = 'SELECT s.host, s.port, s.protocol, s.game_info, s.description, s.owner FROM servers s LEFT JOIN server_advert_groups ag ON s.id = ag.server_id WHERE ag.server_id IS NULL';
-    }
-
-    if (isset($data['version'])) {
-      $sql .= ' AND protocol = :protocol';
-    }
-    $sta = $this->pdo->prepare($sql);
-    if ($bzid) {
-      $sta->bindValue('bzid', $bzid);
-    }
-    if (isset($data['version'])) {
-      $sta->bindValue('protocol', $data['version']);
-    }
-    $sta->execute();
+    // Fetch the servers
+    $game_servers_helper = $this->app->getContainer()->get(GameServerHelper::class);
+    $servers = $game_servers_helper->get_many(
+      protocol: $data['version'],
+      hostname: $data['hostname'], // TODO: Remove the (new) ability to filter on a hostname for the legacy list
+      user_id: $user_id,
+    );
 
     if ($data['listformat'] === 'lua') {
       $body->write("return {\n");
       $body->write("fields = { 'version', 'hexcode', 'addr', 'ipaddr', 'title', 'owner' },\n");
       $body->write("servers = {\n");
-      while ($row = $sta->fetch()) {
+      foreach ($servers as $server) {
         // TODO: Retrieve the owner of the server
-        $body->write("{\"" . addslashes($row['protocol']) . "\",\"" . addslashes($row['game_info']) . "\",\"" . addslashes("{$row['host']}:{$row['port']}") . "\",\"127.0.0.1\",\"" . addslashes($row['description'] ?? '') . "\",\"" . addslashes($row['owner'] ?? '') . "\"},\n");
+        $body->write("{\"" . addslashes($server['protocol']) . "\",\"" . addslashes($server['game_info']) . "\",\"" . addslashes("{$server['hostname']}:{$server['port']}") . "\",\"127.0.0.1\",\"" . addslashes($server['description'] ?? '') . "\",\"" . addslashes($server['owner'] ?? '') . "\"},\n");
       }
       $body->write("}\n}\n");
     } elseif ($data['listformat'] === 'json') {
@@ -366,19 +355,19 @@ class LegacyListController
       $body->write("\"fields\": [\"version\",\"hexcode\",\"addr\",\"ipaddr\",\"title\",\"owner\"],\n");
       $body->write("\"servers\": [");
       $first = true;
-      while ($row = $sta->fetch()) {
+      foreach($servers as $server) {
         // TODO: Retrieve the owner of the server
         if ($first) {
           $first = false;
         } else {
           $body->write(",");
         }
-        $body->write("\n[\"" . addslashes($row['protocol']) . "\",\"" . addslashes($row['game_info']) . "\",\"" . addslashes("{$row['host']}:{$row['port']}") . "\",\"127.0.0.1\",\"" . addslashes($row['description'] ?? '') . "\",\"" . addslashes($row['owner'] ?? '') . "\"]");
+        $body->write("\n[\"" . addslashes($server['protocol']) . "\",\"" . addslashes($server['game_info']) . "\",\"" . addslashes("{$server['hostname']}:{$server['port']}") . "\",\"127.0.0.1\",\"" . addslashes($server['description'] ?? '') . "\",\"" . addslashes($server['owner'] ?? '') . "\"]");
       }
       $body->write("\n]\n}\n");
     } else {
-      while ($row = $sta->fetch()) {
-        $body->write("{$row['host']}:{$row['port']} {$row['protocol']} {$row['game_info']} 127.0.0.1 {$row['description']}\n");
+      foreach($servers as $server) {
+        $body->write("{$server['hostname']}:{$server['port']} {$server['protocol']} {$server['game_info']} 127.0.0.1 {$server['description']}\n");
       }
     }
 
@@ -399,26 +388,13 @@ class LegacyListController
     $errors = [];
 
     // Name/port
-    $hostname = '';
-    $port = '5154';
     if (empty($data['nameport'])) {
       $errors[] = 'Missing public address.';
     } else {
-      $colonPos = strrpos($data['nameport'], ':');
-      // If there isn't a port in the public address, assume it's just a hostname
-      if ($colonPos === false) {
-        $hostname = $data['nameport'];
-      } else {
-        $hostname = substr($data['nameport'], 0, $colonPos);
-        $port = substr($data['nameport'], $colonPos + 1);
-      }
-
-      // Validate the provided values
-      if (!Valid::serverHostname($hostname)) {
-        $errors[] = 'Invalid hostname in public address.';
-      }
-      if (!Valid::serverPort($port)) {
-        $errors[] = 'Invalid port in public address.';
+      try {
+        list($hostname, $port) = $this->split_nameport($data['nameport']);
+      } catch (Exception $e) {
+        $errors[] = $e->getMessage();
       }
     }
 
@@ -582,67 +558,41 @@ class LegacyListController
     $errors = [];
 
     // Name/port
-    $port = '5154';
     if (empty($data['nameport'])) {
       $errors[] = 'Missing public address.';
     } else {
-      $response->getBody()->write("MSG: REMOVE request from {$data['nameport']}\n");
-      $colonPos = strrpos($data['nameport'], ':');
-      // If there isn't a port in the public address, assume it's just a hostname
-      if ($colonPos === false) {
-        $hostname = $data['nameport'];
-      } else {
-        $hostname = substr($data['nameport'], 0, $colonPos);
-        $port = substr($data['nameport'], $colonPos + 1);
-      }
-
-      // Validate the provided values
-      if (!Valid::serverHostname($hostname)) {
-        $errors[] = 'Invalid hostname in public address.';
-      }
-      if (!Valid::serverPort($port)) {
-        $errors[] = 'Invalid port in public address.';
+      try {
+        list($hostname, $port) = $this->split_nameport($data['nameport']);
+      } catch (Exception $e) {
+        $errors[] = $e->getMessage();
       }
     }
 
     if (empty($errors)) {
       // Fetch information about this server
-      try {
-        $statement = $this->pdo->prepare('SELECT s.id, h.key_string FROM servers s LEFT JOIN hosting_keys h ON s.hosting_key_id = h.id WHERE s.host = :host AND s.port = :port');
-        $statement->bindValue('host', $hostname);
-        $statement->bindValue('port', $port, PDO::PARAM_INT);
-        $statement->execute();
-        $server = $statement->fetch();
-      } catch(PDOException $e) {
-        // TODO: Log failure
+      $game_server_helper = $this->app->getContainer()->get(GameServerHelper::class);
+      $server = $game_server_helper->get_id_and_key_from_hostname_and_port($hostname, $port);
+
+      // If the server exists, let's decide if we allow the removal
+      if ($server) {
+        // If a key is provided, and it's the same as the one used for listing the server, we can skip the IP check
+        if ((!empty($data['key']) && $data['key'] === $server['key_string']) || $this->dns_has_ip($hostname, $_SERVER['REMOTE_ADDR'])) {
+          // Delete the server
+          if ($game_server_helper->delete($server['id'])) {
+            $response->getBody()->write("REMOVE: {$data['nameport']}\n");
+          } else {
+            $errors[] = 'Failed to remove server.';
+          }
+        } else {
+          // TODO: Log mismatch
+          $errors[] = "Requesting address {$_SERVER['REMOTE_ADDR']} is not in the resolved hostname.";
+        }
+      } else {
         $errors[] = 'Server not found.';
       }
     }
 
-    // If the server exists, let's decide if we allow the removal
-    if (!empty($server)) {
-      // If a key is provided, and it's the same as the one used for listing the server, we can skip the IP check
-      if ((!empty($data['key']) && $data['key'] === $server['key_string']) || $this->dns_has_ip($hostname, $_SERVER['REMOTE_ADDR'])) {
-        try {
-          $statement = $this->pdo->prepare('DELETE FROM servers WHERE id = :id LIMIT 1');
-          $statement->bindValue('id', $server['id'], PDO::PARAM_INT);
-          $statement->execute();
-
-          $statement = $this->pdo->prepare('DELETE FROM server_advert_groups WHERE server_id = :server_id');
-          $statement->bindValue('server_id', $server['id'], PDO::PARAM_INT);
-          $statement->execute();
-
-          $response->getBody()->write("REMOVE: {$data['nameport']}\n");
-        } catch (PDOException $e) {
-          // TODO: Log failure
-          $errors[] = 'Failed to remove server.';
-        }
-      } else {
-        // TODO: Log mismatch
-        $errors[] = "Requesting address {$_SERVER['REMOTE_ADDR']} is not in the resolved hostname.";
-      }
-    }
-
+    // If there were errors, write those out
     if (!empty($errors)) {
       $response->getBody()->write('ERROR: ' . implode(' ', $errors) . "\n");
     }

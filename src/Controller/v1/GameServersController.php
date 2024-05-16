@@ -22,12 +22,12 @@ declare(strict_types=1);
 
 namespace App\Controller\v1;
 
+use App\DatabaseHelper\GameServerHelper;
 use App\DatabaseHelper\SessionHelper;
 use App\Misc\BZFlagServer;
 use App\Util\PHPBBIntegration;
 use App\Util\Valid;
 use Exception;
-use League\Config\Configuration;
 use Monolog\Logger;
 use OpenApi\Attributes as OA;
 use PDO;
@@ -37,7 +37,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 readonly class GameServersController
 {
-  public function __construct(private PDO $pdo, private Configuration $config, private Logger $logger)
+  public function __construct(private PDO $pdo, private Logger $logger)
   {
 
   }
@@ -69,7 +69,7 @@ readonly class GameServersController
       ])
     ]
   )]
-  public function get_many(Request $request, Response $response, SessionHelper $session_helper): Response
+  public function get_many(Request $request, Response $response, GameServerHelper $game_server_helper, SessionHelper $session_helper): Response
   {
     // Grab the query parameters
     $data = $request->getQueryParams();
@@ -83,47 +83,17 @@ readonly class GameServersController
       }
     }
 
-    // If we have a valid session, we can look up servers advertised to groups the user belongs to
-    if ($user_id) {
-      $phpbb_database = $this->config->get('phpbb.database');
-      $phpbb_prefix = $this->config->get('phpbb.prefix');
-      $sql = "SELECT s.host as hostname, s.port, s.protocol, s.game_info, s.world_hash, s.description, s.owner FROM servers s LEFT JOIN server_advert_groups ag INNER JOIN {$phpbb_database}.{$phpbb_prefix}user_group ug ON ag.group_id = ug.group_id ON s.id = ag.server_id WHERE (ug.user_id = :user_id OR ag.server_id IS NULL)";
-    } else {
-      $sql = 'SELECT s.host as hostname, s.port, s.protocol, s.game_info, s.world_hash, s.description, s.owner FROM servers s LEFT JOIN server_advert_groups ag ON s.id = ag.server_id WHERE ag.server_id IS NULL';
-    }
+    // Fetch the servers
+    $servers = $game_server_helper->get_many(
+      protocol: $data['protocol'],
+      hostname: $data['hostname'],
+      user_id: $user_id,
+    );
 
-    // Support filtering on the protocol and hostname
-    if (isset($data['protocol'])) {
-      $sql .= ' AND protocol = :protocol';
-    }
-    if (isset($data['hostname'])) {
-      $sql .= ' AND host = :hostname';
-    }
-
-    // Add on some basic sorting
-    $sql .= ' ORDER BY host ASC, port ASC';
-
-    // Prepare and run the query, binding any needed data along the way
-    try {
-      $sta = $this->pdo->prepare($sql);
-      if ($user_id) {
-        $sta->bindValue('user_id', $user_id);
-      }
-      if (isset($data['protocol'])) {
-        $sta->bindValue('protocol', $data['protocol']);
-      }
-      if (isset($data['hostname'])) {
-        $sta->bindValue('hostname', $data['hostname']);
-      }
-      if ($sta->execute()) {
-        $results = $sta->fetchAll();
-
-        $response->getBody()->write(json_encode($results));
-        return $response
-          ->withHeader('Content-Type', 'application/json');
-      }
-    } catch (PDOException $e) {
-      $this->logger->critical('Failed to fetch servers', ['error' => $e->getMessage()]);
+    if ($servers !== null) {
+      $response->getBody()->write(json_encode($servers));
+      return $response
+        ->withHeader('Content-Type', 'application/json');
     }
 
     $response->getBody()->write(json_encode(['errors' => ['Error fetching servers.']]));
@@ -267,6 +237,8 @@ readonly class GameServersController
       return $response->withStatus(401);
     }
 
+    // TODO: Verify that the IP of this HTTP requests is contained in the DNS response of the hostname
+
     // Verify that we can connect to the server
     try {
       new BZFlagServer($hostname, $port, $data['protocol']);
@@ -376,7 +348,7 @@ readonly class GameServersController
       new OA\Response(response: 404, description: 'Server not found')
     ]
   )]
-  public function delete_one(Request $request, Response $response, string $hostname, int $port): Response
+  public function delete_one(Request $request, Response $response, GameServerHelper $game_server_helper, string $hostname, int $port): Response
   {
     // Track any errors
     $errors = [];
@@ -397,32 +369,12 @@ readonly class GameServersController
     // If there were no errors in the provided data, try to look up and then delete the server
     if (empty($errors)) {
       // Fetch information about this server
-      try {
-        $statement = $this->pdo->prepare('SELECT s.id, h.key_string FROM servers s LEFT JOIN hosting_keys h ON s.hosting_key_id = h.id WHERE s.host = :hostname AND s.port = :port');
-        $statement->bindValue('hostname', $hostname);
-        $statement->bindValue('port', $port, PDO::PARAM_INT);
-        $statement->execute();
-        $server = $statement->fetch();
+      $server = $game_server_helper->get_id_and_key_from_hostname_and_port($hostname, $port);
+      $server_key = $request->getHeader('Server-Key')[0];
 
-        // Remove the server if it exists and the key matches
-        $server_key = $request->getHeader('Server-Key')[0];
-        if ($server && $server['key_string'] === $server_key) {
-          $statement = $this->pdo->prepare('DELETE FROM servers WHERE id = :id');
-          $statement->bindValue('id', $server['id'], PDO::PARAM_INT);
-          $statement->execute();
-
-          $statement = $this->pdo->prepare('DELETE FROM server_advert_groups WHERE server_id = :server_id');
-          $statement->bindValue('server_id', $server['id'], PDO::PARAM_INT);
-          $statement->execute();
-
-          return $response->withStatus(204);
-        }
-      } catch(PDOException $e) {
-        $this->logger->critical('Failed to lookup or delete server', [
-          'hostname' => $hostname,
-          'port' => $port,
-          'error' => $e->getMessage()
-        ]);
+      // If we found the server and the key matches, delete it
+      if ($server !== null && $server['server_key'] === $server_key && $game_server_helper->delete($server['id'])) {
+        return $response->withStatus(204);
       }
 
       // Didn't find a server that also used the provided key, so return a 404
