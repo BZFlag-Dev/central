@@ -94,13 +94,11 @@ $container->set(Configuration::class, function (): Configuration {
   return $config;
 });
 
-$container->set(Twig::class, function (Configuration $config) {
-  $twig = Twig::create(dirname(__DIR__).'/views', [
+$container->set(Twig::class, function () {
+  return Twig::create(dirname(__DIR__).'/views', [
     'cache' => dirname(__DIR__).'/var/cache/twig',
     'auto_reload' => true
   ]);
-
-  return $twig;
 });
 
 $container->set(PDO::class, function (Configuration $config): PDO {

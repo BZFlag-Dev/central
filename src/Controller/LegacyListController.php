@@ -267,7 +267,7 @@ class LegacyListController
           }
           $return .= "\n";
         } catch (PDOException $e) {
-          $this->logger->error('Database error reading token', ['token' => $token, 'user_id' => $user_id]);
+          $this->logger->error('Database error reading token', ['token' => $token, 'user_id' => $user_id, 'error' => $e->getMessage()]);
           $return .= "TOKBAD: $callsign\n";
         }
       }
@@ -282,7 +282,7 @@ class LegacyListController
   private function split_nameport($nameport): array
   {
     // Split the nameport into parts
-    $parts = parse_url("bzfs://{$nameport}");
+    $parts = parse_url("bzfs://$nameport");
 
     // If the host/port is seriously malformed, throw an exception
     if ($parts === false) {
@@ -296,7 +296,7 @@ class LegacyListController
 
     if (!isset($parts['host']) || !Valid::serverHostname($parts['host'])) {
       throw new Exception('Invalid hostname in public address.');
-    };
+    }
 
     if (isset($parts['port']) && !Valid::serverPort($parts['port'])) {
       throw new Exception('Invalid port in public address.');
@@ -537,8 +537,6 @@ class LegacyListController
     // If we had any errors, report them
     if (!empty($errors)) {
       $response->getBody()->write('ERROR: '.implode(' ', $errors) . "\n");
-      return $response
-        ->withHeader('Content-Type', 'text/plain');
     }
     // Otherwise, tell the server it was added and process any tokens
     else {
@@ -554,10 +552,10 @@ class LegacyListController
 
       // Process tokens
       $body->write($this->process_tokens($data));
-
-      return $response
-        ->withHeader('Content-Type', 'text/plain');
     }
+
+    return $response
+      ->withHeader('Content-Type', 'text/plain');
   }
 
   private function remove_server(Request $request, Response $response, array $data): Response
