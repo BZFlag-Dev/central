@@ -20,7 +20,6 @@ declare(strict_types=1);
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use App\Controller\DocumentationController;
 use App\Controller\LegacyListController;
 use App\Controller\v1\GameServersController;
 use App\Controller\v1\SessionsController;
@@ -29,6 +28,9 @@ use League\Config\Configuration;
 use Monolog\Handler\StreamHandler;
 use Monolog\Logger;
 use Nette\Schema\Expect;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+use Psr\Http\Server\RequestHandlerInterface;
 use Slim\App;
 use Slim\Csrf\Guard;
 use Slim\Routing\RouteCollectorProxy;
@@ -136,7 +138,7 @@ $container->set(Guard::class, function (App $app, Twig $twig): Guard {
   }
 
   // Create and configure the CSRF guard
-  $csrf = new Guard($app->getResponseFactory(), failureHandler: function (\Psr\Http\Message\ServerRequestInterface $request, \Psr\Http\Server\RequestHandlerInterface $handler) {
+  $csrf = new Guard($app->getResponseFactory(), failureHandler: function (Request $request, RequestHandlerInterface $handler) {
     $request = $request->withAttribute('csrf_status', false);
     return $handler->handle($request);
   }, persistentTokenMode: true);
@@ -180,8 +182,11 @@ if ($_SERVER['SERVER_NAME'] === $config->get('legacy_host')) {
 }
 // Third generation server list which is a modern REST API
 else {
-  // Write out usage information. Swagger docs?
-  $app->get('/', [DocumentationController::class, 'usage'])->setName('usage');
+  $app->get('/', function (Response $response): Response {
+    return $response
+      ->withHeader('Location', '/docs/')
+      ->withStatus(302);
+  });
 
   // v1 API development
   $app->group('/v1-dev', function (RouteCollectorProxy $group) {
