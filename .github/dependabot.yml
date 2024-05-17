@@ -5,6 +5,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "friday"
+      time: "21:00"
     versioning-strategy: "increase-if-necessary"
     allow:
       - dependency-type: "all"
