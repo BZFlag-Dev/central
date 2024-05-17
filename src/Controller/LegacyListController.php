@@ -79,7 +79,6 @@ class LegacyListController
     }
 
     // Split nameport into host and port parts
-    // TODO: Test if $server_host isn't defined by the below
     if (!empty($data['nameport'])) {
       try {
         [$server_host, $server_port] = $this->split_nameport($data['nameport']);
@@ -155,7 +154,6 @@ class LegacyListController
     $return = '';
 
     // Split nameport into host and port parts
-    // TODO: Test if $server_host isn't defined by the below
     if (!empty($data['nameport'])) {
       try {
         [$server_host, $server_port] = $this->split_nameport($data['nameport']);
@@ -353,7 +351,6 @@ class LegacyListController
       $body->write("fields = { 'version', 'hexcode', 'addr', 'ipaddr', 'title', 'owner' },\n");
       $body->write("servers = {\n");
       foreach ($servers as $server) {
-        // TODO: Retrieve the owner of the server
         $body->write("{\"" . addslashes($server['protocol']) . "\",\"" . addslashes($server['game_info']) . "\",\"" . addslashes("{$server['hostname']}:{$server['port']}") . "\",\"127.0.0.1\",\"" . addslashes($server['description'] ?? '') . "\",\"" . addslashes($server['owner'] ?? '') . "\"},\n");
       }
       $body->write("}\n}\n");
@@ -363,7 +360,6 @@ class LegacyListController
       $body->write("\"servers\": [");
       $first = true;
       foreach($servers as $server) {
-        // TODO: Retrieve the owner of the server
         if ($first) {
           $first = false;
         } else {
@@ -459,8 +455,8 @@ class LegacyListController
             }
           }
         } catch (PDOException $e) {
-          // TODO: Log failure
           $errors[] = 'Owner lookup failure';
+          $this->logger->error('Server owner lookup failure', ['error' => $e->getMessage()]);
         }
       }
     }
@@ -596,8 +592,8 @@ class LegacyListController
             $errors[] = 'Failed to remove server.';
           }
         } else {
-          // TODO: Log mismatch
           $errors[] = "Requesting address {$_SERVER['REMOTE_ADDR']} is not in the resolved hostname.";
+          $this->logger->error('Request to remove server came from IP address that is not in resolved hostname', ['remote_addr' => $_SERVER['REMOTE_ADDR'], 'hostname' => $hostname]);
         }
       } else {
         $errors[] = 'Server not found.';
@@ -677,7 +673,7 @@ class LegacyListController
           // Attempt to authenticate the player using the provided callsign and password
           $authentication_attempt = $phpbb->authenticate_player($data['username'], $data['password']);
           if (!empty($authentication_attempt['error'])) {
-            // TODO: Log error
+            $this->logger->error('Player authentication failure', ['error' => $authentication_attempt['error']]);
             throw new Exception($authentication_attempt['error']);
           }
 
