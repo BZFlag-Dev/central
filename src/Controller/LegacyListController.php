@@ -327,15 +327,14 @@ class LegacyListController
     $body = $response->getBody();
 
     // Default to the plain list format
-    if (!isset($data['listformat'])) {
+    if (!isset($data['listformat']) || !in_array($data['listformat'], ['plain', 'json', 'lua'], true)) {
       $data['listformat'] = 'plain';
     }
 
-    // Authenticate the player
-    $auth = $this->authenticate_player($data, $user_id);
-
-    // For the plain list format, write out the auth line
+    // Handle authentication for the plain type only
     if ($data['listformat'] === 'plain') {
+      // Authenticate the player
+      $auth = $this->authenticate_player($data, $user_id);
       $body->write($auth);
     }
 
@@ -343,7 +342,7 @@ class LegacyListController
     $game_servers_helper = $this->app->getContainer()->get(GameServerHelper::class);
     $servers = $game_servers_helper->get_many(
       protocol: $data['version'] ?? null,
-      user_id: $user_id,
+      user_id: $user_id ?? null,
     );
 
     if ($data['listformat'] === 'lua') {
