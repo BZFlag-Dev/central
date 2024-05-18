@@ -702,6 +702,177 @@ class LegacyListController
     return $twig->render($response, 'weblogin.html.twig', $template_variables);
   }
 
+  public function listkeys(Request $request, Response $response, Twig $twig): Response
+  {
+    // Grab the request data for this request
+    $data = ($request->getMethod() === 'POST') ? $request->getParsedBody() : $request->getQueryParams();
+
+    // Grab a copy of the action
+    $action = $data['action'] ?? '';
+
+    // Limit the session length to 30 minutes
+    $session_lifespan_minutes = 30;
+
+    if ($request->getMethod() === 'POST') {
+      // Validate CSRF token
+      if (false === $request->getAttribute('csrf_status')) {
+        $_SESSION['listkeys_flash'] = 'The submitted form was invalid. Please try again.';
+      }
+
+      // If the user is trying to log in, process that
+      elseif ($action === 'login') {
+        // Get the phpbb helper
+        $phpbb = $this->app->getContainer()->get(PHPBBIntegration::class);
+
+        // Attempt the login
+        $authentication_attempt = $phpbb->authenticate_player($data['username'], $data['password']);
+
+        // If it failed, set a flash message
+        if (!empty($authentication_attempt['error'])) {
+          $_SESSION['listkeys_flash'] = "Authentication failed: {$authentication_attempt['error']}";
+        }
+        // Otherwise, store the session info
+        else {
+          $_SESSION['listkeys_bzid'] = $authentication_attempt['bzid'];
+          $_SESSION['listkeys_username'] = $authentication_attempt['callsign'];
+          $_SESSION['listkeys_session_created'] = time();
+        }
+      }
+
+      // If a BZID isn't stored in the session or the session has expired, clear any session values
+      elseif (empty($_SESSION['listkeys_bzid']) || empty($_SESSION['listkeys_session_created']) || $_SESSION['listkeys_session_created'] + (60 * $session_lifespan_minutes) < time()) {
+        unset($_SESSION['listkeys_bzid'], $_SESSION['listkeys_username'], $_SESSION['listkeys_session_created']);
+        $_SESSION['listkeys_flash'] = 'Session expired';
+      }
+
+      // User is attempting the create a new key
+      elseif ($action === 'create') {
+        // Make sure the hostname field isn't empty
+        if (empty($data['hostname'])) {
+          $_SESSION['listkeys_flash'] = 'A hostname must be provided when creating a key';
+        } else {
+          // First, try to create a unique key
+          $stmt_get = $this->pdo->prepare('SELECT id FROM hosting_keys WHERE key_string = :key_string');
+          try {
+            for ($i = 0; $i < 20; $i++) {
+              // Generate a key
+              $key_string = bin2hex(random_bytes(20));
+
+              // Verify it doesn't already exist
+              $stmt_get->bindValue('key_string', $key_string);
+              $stmt_get->execute();
+              $row = $stmt_get->fetch();
+
+              // If it doesn't exist, store it and bail out of the loop
+              if (!$row) {
+                $stmt_create = $this->pdo->prepare('INSERT INTO hosting_keys (key_string, host, user_id) VALUES (:key_string, :host, :user_id)');
+                $stmt_create->bindValue('key_string', $key_string);
+                $stmt_create->bindValue('host', $data['hostname']);
+                $stmt_create->bindValue('user_id', $_SESSION['listkeys_bzid']);
+                if ($stmt_create->execute()) {
+                  $_SESSION['listkeys_flash'] = 'Successfully created key';
+                  break;
+                }
+              }
+            }
+
+            // If we failed to create a key, notify the user
+            if ($i === 20) {
+              throw new Exception('Failed to generate a unique key');
+            }
+          } catch (Exception $e) {
+            $this->logger->error('Hosting key generation failure', ['error' => $e->getMessage()]);
+            $_SESSION['listkeys_flash'] = 'There was an error generating a key';
+          }
+        }
+      }
+
+      // The user is attempting to delete an existing key
+      elseif ($action === 'delete') {
+        try {
+          // Delete a key matching the key id and user id
+          $stmt = $this->pdo->prepare('DELETE FROM hosting_keys WHERE id = :id AND user_id = :user_id');
+          $stmt->bindValue('id', $data['id'], PDO::PARAM_INT);
+          $stmt->bindValue('user_id', $_SESSION['listkeys_bzid'], PDO::PARAM_INT);
+          if ($stmt->execute()) {
+            $_SESSION['listkeys_flash'] = 'Successfully deleted key';
+          }
+        } catch (Exception $e) {
+          $this->logger->error('Hosting key deletion failure', ['error' => $e->getMessage()]);
+        }
+      }
+
+      // Complain about invalid actions
+      else {
+        $_SESSION['listkeys_flash'] = 'Invalid action';
+      }
+
+      // Redirect the user back
+      return $response
+        ->withHeader('Location', $this->app->getRouteCollector()->getRouteParser()->urlFor('listkeys'))
+        ->withStatus(302);
+    }
+    // Otherwise, this is going to be the GET method
+    else {
+      // The user is requesting a logout, so clear the session and redirect them back to the login page
+      if ($action === 'logout') {
+        unset($_SESSION['listkeys_bzid'], $_SESSION['listkeys_username'], $_SESSION['listkeys_session_created']);
+        $_SESSION['listkeys_flash'] = 'You have logged out';
+
+        return $response
+          ->withHeader('Location', $this->app->getRouteCollector()->getRouteParser()->urlFor('listkeys'))
+          ->withStatus(302);
+      }
+
+      // If the session is expired or has otherwise expired, clear session info and show the login page
+      elseif (empty($_SESSION['listkeys_bzid']) || empty($_SESSION['listkeys_session_created']) || $_SESSION['listkeys_session_created'] + (60 * $session_lifespan_minutes) < time()) {
+        $template_variables = [];
+
+        // Handle the flash message, if one exists
+        if (isset($_SESSION['listkeys_flash'])) {
+          $template_variables['flash'] = $_SESSION['listkeys_flash'];
+          unset($_SESSION['listkeys_flash']);
+        }
+        // Otherwise, if the session expired, inform the user of such
+        elseif (!empty($_SESSION['listkeys_bzid'])) {
+          $template_variables['flash'] = 'Session expired';
+        }
+
+        // Clear session info
+        unset($_SESSION['listkeys_bzid'], $_SESSION['listkeys_username'], $_SESSION['listkeys_session_created']);
+
+        return $twig->render($response, 'listkeys/login.html.twig', $template_variables);
+      }
+
+      // Otherwise, show the key management page
+      else {
+        // Fetch a list of existing keys for this user
+        try {
+          $stmt = $this->pdo->prepare('SELECT id, key_string, host FROM hosting_keys WHERE user_id = :user_id');
+          $stmt->bindValue('user_id', $_SESSION['listkeys_bzid'], PDO::PARAM_INT);
+          $stmt->execute();
+          $keys = $stmt->fetchAll();
+        } catch (PDOException $e) {
+          $this->logger->error('Hosting key fetch failure', ['error' => $e->getMessage()]);
+        }
+
+        $template_variables = [
+          'bzid' => $_SESSION['listkeys_bzid'],
+          'username' => $_SESSION['listkeys_username'],
+          'keys' => $keys
+        ];
+
+        // Handle the flash message, if one exists
+        if (isset($_SESSION['listkeys_flash'])) {
+          $template_variables['flash'] = $_SESSION['listkeys_flash'];
+          unset($_SESSION['listkeys_flash']);
+        }
+
+        return $twig->render($response, 'listkeys/keys.html.twig', $template_variables);
+      }
+    }
+  }
+
   private function usage(Request $request, Response $response): Response
   {
     $twig = $this->app->getContainer()->get(Twig::class);

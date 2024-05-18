@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en-us" data-bs-theme="dark">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="darkreader-lock">
+    <title>BZFlag Server Key Management</title>
+    <link rel="stylesheet" href="/css/bootstrap.min.css">
+</head>
+<body class="bg-secondary-subtle">
+<div class="container mt-3">
+    <h1>BZFlag Server Key Management</h1>
+    <div>Server keys are used for hosting public BZFlag server instances</div>
+    {% if bzid %}<div><a href="?action=logout">Logout</a></div>{% endif %}
+    <div class="mt-4">
+{% block content %}
+{% endblock %}
+    </div>
+</div>
+</body>
+</html>

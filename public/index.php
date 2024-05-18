@@ -179,6 +179,8 @@ if ($_SERVER['SERVER_NAME'] === $config->get('legacy_host')) {
   $app->map(['GET', 'POST'], '/bzfls.php', [LegacyListController::class, 'db']);
   $app->map(['GET', 'POST'], '/weblogin.php', [LegacyListController::class, 'weblogin'])
     ->setName('weblogin')->add(Guard::class);
+  $app->map(['GET', 'POST'], '/listkeys/', [LegacyListController::class, 'listkeys'])
+    ->setName('listkeys')->add(Guard::class);
 }
 // Third generation server list which is a modern REST API
 else {

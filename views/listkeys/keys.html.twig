@@ -1,0 +1,63 @@
+{% extends "listkeys/layout.html.twig" %}
+{% block content %}
+    {% if flash %}<div class="text-danger mt-3">{{ flash }}</div>{% endif %}
+
+    <div class="mt-3">
+        <h2>New Key</h2>
+        Publishing a server on the public server list requires a hostname that points to your server's IP address. If
+        you do not have a hostname, you may buy a domain from any registrar, or use a free service such as
+        <a href="https://freedns.afraid.org">FreeDNS</a> or <a href="https://www.noip.com/">NoIP</a>. The generated key
+        will only work for servers published using the specified hostname.
+
+        <form action="{{ url_for('listkeys') }}" method="post">
+            <input type="hidden" name="{{ csrf.name_key }}" value="{{ csrf.name }}">
+            <input type="hidden" name="{{ csrf.value_key }}" value="{{ csrf.value }}">
+
+            <div class="mt-3">
+                <label for="hostname" class="form-label">Hostname:</label>
+                <input type="text" class="form-control" name="hostname" id="hostname">
+            </div>
+
+            <div class="mt-3">
+                <button class="btn btn-primary" type="submit" name="action" value="create">Create Key</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="mt-3">
+        <h2>Keys</h2>
+        {% for key in keys %}
+        {% if loop.first %}
+        <form action="{{ url_for('listkeys') }}" method="post">
+            <input type="hidden" name="{{ csrf.name_key }}" value="{{ csrf.name }}">
+            <input type="hidden" name="{{ csrf.value_key }}" value="{{ csrf.value }}">
+
+            <input type="hidden" name="action" value="delete">
+            <table class="table table-striped">
+                <thead>
+                <tr>
+                    <th>Host</th>
+                    <th>Key</th>
+                    <th>Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+        {% endif %}
+                <tr>
+                    <td>{{ key.host }}</td>
+                    <td>{{ key.key_string }}</td>
+                    <td>
+                        <button class="btn btn-danger" type="submit" name="id" value="{{ key.id }}">Delete</button>
+                    </td>
+                </tr>
+        {% if loop.last %}
+                </tbody>
+            </table>
+        </form>
+        {% endif %}
+        {% else %}
+        No keys are associated with your account.
+        {% endfor %}
+    </div>
+
+{% endblock %}

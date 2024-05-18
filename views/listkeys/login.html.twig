@@ -1,0 +1,23 @@
+{% extends "listkeys/layout.html.twig" %}
+{% block content %}
+
+    <form action="{{ url_for('listkeys') }}" method="post">
+        <input type="hidden" name="{{ csrf.name_key }}" value="{{ csrf.name }}">
+        <input type="hidden" name="{{ csrf.value_key }}" value="{{ csrf.value }}">
+
+        <div class="mb-3">
+            <label for="username" class="form-label">Username:</label>
+            <input type="text" class="form-control" name="username" id="username">
+        </div>
+
+        <div class="mb-3">
+            <label for="password" class="form-label">Password:</label>
+            <input type="password" class="form-control" name="password" id="password">
+        </div>
+
+        <button type="submit" class="btn btn-primary" name="action" value="login">Log In</button>
+
+        {% if flash %}<div class="text-danger mt-3">{{ flash }}</div>{% endif %}
+    </form>
+
+{% endblock %}
