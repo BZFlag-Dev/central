@@ -205,6 +205,12 @@ class LegacyListController
           continue;
         }
 
+        // If a token wasn't provided, don't even bother checking the database
+        if ($token_string === 'NONE') {
+          $return .= "TOKBAD: $callsign\n";
+          continue;
+        }
+
         try {
           // Fetch the token information
           $select_token_statement->bindValue('user_id', $user_id, PDO::PARAM_INT);
