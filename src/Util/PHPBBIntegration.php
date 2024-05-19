@@ -150,6 +150,9 @@ class PHPBBIntegration
           if ($this->redis->get($key_login_attempts) <= 0) {
             if ($this->redis->setnx($key_lockout, 1)) {
               $this->redis->expire($key_lockout, $this->login_config['lockout_duration']);
+              return [
+                'error' => 'Too many failed login attempts. Temporarily locked out.'
+              ];
             }
           }
         } catch (\RedisException $e) {
