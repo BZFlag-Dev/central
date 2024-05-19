@@ -152,6 +152,16 @@ class LegacyListController
       return '';
     }
 
+    // Delete stale tokens
+    try {
+      $stmt = $this->pdo->prepare('DELETE FROM auth_tokens WHERE DATE_ADD(when_created, INTERVAL :token_lifetime SECOND) <= NOW()');
+      $stmt->bindValue('token_lifetime', $this->token_lifetime, PDO::PARAM_INT);
+      $stmt->execute();
+    }
+    catch (PDOException $e) {
+      $this->logger->error('Failed purging stale authentication tokens', ['error' => $e->getMessage()]);
+    }
+
     // Information to return
     $return = '';
 
