@@ -53,6 +53,11 @@
             <input type="password" class="form-control" id="password" name="password">
         </div>
 
+        <div class="mb-3 bzfls-option" data-actions="LIST">
+            <input type="checkbox" class="form-check-input" id="skiptoken" name="skiptoken" value="1">
+            <label for="skiptoken" class="form-check-label">skiptoken - Skip player authentication token when getting the server list</label>
+        </div>
+
         <div class="mb-3 bzfls-option" data-actions="LIST,GETTOKEN,ADD,REMOVE,CHECKTOKENS">
             <label for="build" class="form-label">build - The build string of the client/server</label>
             <input type="text" class="form-control" id="build" name="build">
@@ -127,7 +132,7 @@
         for (let i = 0; i < option_containers.length; i++) {
             if (option_containers[i].dataset.actions.split(',').includes(a)) {
                 const el = option_containers[i].querySelector('input, textarea, select');
-                if (el && el.value.length > 0 && (el.name !== 'listformat' || el.value !== "plain")) {
+                if (el && el.value.length > 0 && (el.name !== 'listformat' || el.value !== "plain") && (el.type !== 'checkbox' || el.checked)) {
                     data.append(el.name, el.value);
                 }
             }

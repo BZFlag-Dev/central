@@ -71,7 +71,7 @@ class LegacyListController
     };
   }
 
-  private function authenticate_player(array $data, int|null &$bzid = null): string
+  private function authenticate_player(array $data, int|null &$bzid = null, $skip_token = false): string
   {
     // If either the callsign or password are empty, just bail out here
     if (empty($data['callsign']) || empty($data['password'])) {
@@ -100,8 +100,8 @@ class LegacyListController
       ]);
       return "NOTOK: {$authentication_attempt['error']}\n";
     }
-    // Otherwise, let's generate, store, and return a token
-    else {
+    // Otherwise, unless we're told to skip it, let's generate, store, and return a token
+    elseif (!$skip_token) {
       try {
         // Generate a 20 character string for the authentication token. The client/server allocate 22 bytes, including
         // the terminating NUL, for the token.
@@ -122,6 +122,8 @@ class LegacyListController
         return "NOTOK: Failed to generate token...\n";
       }
     }
+
+    return '';
   }
 
   private function create_token(int $bzid, string $server_host = null, int $server_port = null): string|false
@@ -340,7 +342,7 @@ class LegacyListController
     // Handle authentication for the plain type only
     if ($data['listformat'] === 'plain') {
       // Authenticate the player
-      $auth = $this->authenticate_player($data, $user_id);
+      $auth = $this->authenticate_player($data, $user_id, isset($data['skiptoken']) && $data['skiptoken'] === '1');
       $body->write($auth);
     }
 
