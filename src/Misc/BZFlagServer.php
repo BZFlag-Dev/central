@@ -81,7 +81,7 @@ class BZFlagServer
     }
   }
 
-  public function getProtocol(): string
+  public function getProtocol(): string|null
   {
     return $this->protocol;
   }

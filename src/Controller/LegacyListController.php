@@ -157,8 +157,7 @@ class LegacyListController
       $stmt = $this->pdo->prepare('DELETE FROM auth_tokens WHERE DATE_ADD(when_created, INTERVAL :token_lifetime SECOND) <= NOW()');
       $stmt->bindValue('token_lifetime', $this->token_lifetime, PDO::PARAM_INT);
       $stmt->execute();
-    }
-    catch (PDOException $e) {
+    } catch (PDOException $e) {
       $this->logger->error('Failed purging stale authentication tokens', ['error' => $e->getMessage()]);
     }
 
@@ -763,7 +762,7 @@ class LegacyListController
         $_SESSION['listkeys_flash'] = 'Session expired';
       }
 
-      // User is attempting the create a new key
+      // User is attempting to create a new key
       elseif ($action === 'create') {
         // Make sure the hostname field isn't empty
         if (empty($data['hostname'])) {
