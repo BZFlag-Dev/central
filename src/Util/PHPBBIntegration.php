@@ -111,7 +111,7 @@ class PHPBBIntegration
           try {
             $statement = $this->pdo->prepare("UPDATE {$this->phpbb_database}.{$this->phpbb_prefix}users SET user_password = :user_password WHERE user_id = :user_id");
             $statement->bindParam('user_password', $new_hash);
-            $statement->bindParam('user_id', $row['user_id'], PDO::PARAM_INT);
+            $statement->bindParam('user_id', $user['user_id'], PDO::PARAM_INT);
             $statement->execute();
             // TODO: Check if this works. Some database drivers don't support this.
             if ($statement->rowCount() != 1) {
