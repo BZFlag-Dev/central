@@ -38,6 +38,9 @@ class GameServerHelper
 
   public function get_many(string $protocol = null, string $hostname = null, int $user_id = null): array|null
   {
+    // Delete stale servers
+    $this->delete_stale();
+
     // If we have a valid session, we can look up servers advertised to groups the user belongs to
     if (!empty($user_id)) {
       $phpbb_database = $this->config->get('phpbb.database');

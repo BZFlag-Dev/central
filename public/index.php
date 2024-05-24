@@ -171,8 +171,6 @@ if ($log_config['log_other_errors']) {
 
 $app->addErrorMiddleware($config->get('debug'), true, true, $error_logger ?? null);
 
-// TODO: Delete expired authentication tokens and stale servers
-
 // Second generation server list compatability
 if ($_SERVER['SERVER_NAME'] === $config->get('legacy_host')) {
   $app->map(['GET', 'POST'], '/db/', [LegacyListController::class, 'db'])->setName('legacy_bzfls');
