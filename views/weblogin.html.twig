@@ -87,7 +87,7 @@
 <script src="/js/js-cookie.min.js"></script>
 <script>
     const theme_toggle = document.querySelector('.theme-toggle');
-    theme_toggle.addEventListener('click', (ev) => {
+    theme_toggle.addEventListener('click', () => {
         document.documentElement.dataset.bsTheme = (document.documentElement.dataset.bsTheme === 'light') ? 'dark' : 'light';
         Cookies.set('color_theme', document.documentElement.dataset.bsTheme, {
             sameSite: 'strict',
