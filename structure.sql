@@ -27,7 +27,8 @@ CREATE TABLE hosting_keys (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     key_string VARCHAR(255) NOT NULL,
     host VARCHAR(255) NOT NULL,
-    user_id INT UNSIGNED NOT NULL
+    user_id INT UNSIGNED NOT NULL,
+    UNIQUE(key_string)
 );
 
 CREATE INDEX idx_hosting_keys_user_id ON hosting_keys (user_id);
