@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 /*
  * BZFlag List Server v3: Handles listing public servers and player authentication
- * Copyright (C) 2023  BZFlag & Associates
+ * Copyright (C) 2023-2024  BZFlag & Associates
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
