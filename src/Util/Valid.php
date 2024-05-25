@@ -26,7 +26,7 @@ class Valid
 {
   public static function serverHostname(string $hostname): bool
   {
-    return strlen($hostname) > 0 && preg_match('/^([A-Za-z0-9\-]+\.)+[A-Za-z]{2,}$/', $hostname) === 1;
+    return strlen($hostname) > 0 && strlen($hostname) <= 255 && preg_match('/^([A-Za-z0-9\-]+\.)+[A-Za-z]{2,}$/', $hostname) === 1;
   }
 
   // Must be a number between 1 and 65535 inclusive
@@ -52,12 +52,12 @@ class Valid
   // Must be a hexadecimal value with no whitespace
   public static function serverGameInfo(string $game_info): bool
   {
-    return ctype_xdigit($game_info);
+    return strlen($game_info) <= 255 && ctype_xdigit($game_info);
   }
 
   public static function serverDescription(string $description): bool
   {
     // TODO: Do we eventually want to allow UTF-8 descriptions?
-    return ctype_print($description);
+    return strlen($description) <= 255 && ctype_print($description);
   }
 }
