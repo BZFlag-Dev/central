@@ -43,4 +43,5 @@ return $config->setRules([
 ])
   ->setIndent("  ")
   ->setFinder($finder)
+  ->setRiskyAllowed(true)
   ;
