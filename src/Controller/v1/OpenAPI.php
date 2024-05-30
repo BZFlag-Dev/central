@@ -46,11 +46,11 @@ use OpenApi\Attributes as OA;
     schemas: [
       new OA\Schema(
         schema: 'server',
-        required: ['protocol', 'hostname', 'port', 'game_info'],
+        required: ['protocol', 'hostname', 'port', 'game_info', 'world_hash'],
         properties: [
           new OA\Property(property: 'hostname', description: 'Public hostname of the server', type: 'string', readOnly: true, example: 'example.com'),
           new OA\Property(property: 'port', description: 'Public port of the server', type: 'integer', default: 5154, maximum: 65535, minimum: 1, readOnly: true),
-          new OA\Property(property: 'protocol', description: 'Server protocol version', type: 'string', example: 'BZFS0221'),
+          new OA\Property(property: 'protocol', description: 'Server protocol version', type: 'string', readOnly: true, example: 'BZFS0221'),
           new OA\Property(property: 'game_info', description: 'Hex encoded information about the game server status, such as player counts/limits', type: 'string', maxLength: 128, example: '0001007a00030000003200000000000032000000190019000000000018'),
           new OA\Property(property: 'world_hash', description: 'Hash of the binary representation of the world, prefixed with the hash type', type: 'string', maxLength: 135, example: 'sha256:07123e1f482356c415f684407a3b8723e10b2cbbc0b8fcd6282c49d37c9c1abc'),
           new OA\Property(property: 'description', description: 'Public description of the server', type: 'string', maxLength: 128, example: 'Public HiX server'),
