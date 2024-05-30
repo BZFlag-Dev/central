@@ -22,6 +22,8 @@ declare(strict_types=1);
 
 namespace App\Controller\v1;
 
+use App\Controller\v1\Schema\ErrorSchema;
+use App\Controller\v1\Schema\ErrorType;
 use App\DatabaseHelper\GameServerHelper;
 use App\DatabaseHelper\SessionHelper;
 use App\Misc\BZFlagServer;
@@ -96,7 +98,7 @@ readonly class GameServersController
         ->withHeader('Content-Type', 'application/json');
     }
 
-    $response->getBody()->write(json_encode(['errors' => ['Error fetching servers.']]));
+    $response->getBody()->write(ErrorSchema::getJSON(ErrorType::InternalServerError, ['Error fetching servers']));
     return $response->withStatus(500);
   }
 
@@ -111,23 +113,36 @@ readonly class GameServersController
       new OA\PathParameter(name: 'port', description: 'Public port of the server', required: true, schema: new OA\Schema(type: 'integer'))
     ],
     responses: [
-      new OA\Response(response: 200, description: 'Server updated'),
-      new OA\Response(response: 201, description: 'Server created'),
-      new OA\Response(response: 400, description: 'Invalid data provided'),
-      new OA\Response(response: 401, description: 'Missing or invalid authentication')
+      new OA\Response(response: 200, description: 'Updated'),
+      new OA\Response(response: 201, description: 'Created'),
+      new OA\Response(response: 400, description: 'Bad Request', content: [
+        'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
+          'type' => 'bad_request',
+          'errors' => [
+            'Invalid hostname in public address.',
+            'Invalid server description.'
+          ]
+        ])
+      ]),
+      new OA\Response(response: 401, description: 'Authentication Failure', content: [
+        'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
+          'type' => 'unauthorized',
+          'errors' => ['Host mismatch for server key.']
+        ])
+      ]),
     ]
   )]
   public function create_or_update(Request $request, Response $response, PHPBBIntegration $phpbb, string $hostname, int $port): Response
   {
     // Verify the body content type is JSON
     if ($request->getHeaderLine('Content-Type') !== 'application/json') {
-      $response->getBody()->write(json_encode(['errors' => ['Body must be application/json.']]));
+      $response->getBody()->write(ErrorSchema::getJSON(ErrorType::BadRequest, ['Body must be application/json.']));
       return $response->withStatus(400);
     }
 
     // Verify a server key was provided, which will be validated later
     if (!$request->hasHeader('Server-Key')) {
-      $response->getBody()->write(json_encode(['errors' => ['Missing server authentication key.']]));
+      $response->getBody()->write(ErrorSchema::getJSON(ErrorType::Unauthorized, ['Missing server authentication key.']));
       return $response
         ->withStatus(401)
         ->withHeader('Content-Type', 'application/json');
@@ -136,7 +151,7 @@ readonly class GameServersController
     // Attempt to parse the body
     $data = json_decode(file_get_contents('php://input'), true);
     if (json_last_error() !== JSON_ERROR_NONE) {
-      $response->getBody()->write(json_encode(['errors' => ['Failed to parse JSON body.']]));
+      $response->getBody()->write(ErrorSchema::getJSON(ErrorType::BadRequest, ['Failed to parse JSON body.']));
       return $response
         ->withStatus(400)
         ->withHeader('Content-Type', 'application/json');
@@ -233,7 +248,7 @@ readonly class GameServersController
 
     // If there was an error when lookup up the key or the key owner, bail out here
     if (isset($server_key_error)) {
-      $response->getBody()->write(json_encode(['errors' => [$server_key_error]]));
+      $response->getBody()->write(ErrorSchema::getJSON(ErrorType::Unauthorized, [$server_key_error]));
       return $response->withStatus(401);
     }
 
@@ -265,7 +280,7 @@ readonly class GameServersController
         if ($existing) {
           // If the hosting key doesn't match, return a 401
           if ($existing['hosting_key_id'] !== $hosting_key['id']) {
-            $response->getBody()->write(json_encode(['errors' => ['Hosting key mismatch when updating server.']]));
+            $response->getBody()->write(ErrorSchema::getJSON(ErrorType::Unauthorized, ['Hosting key mismatch when updating server.']));
             return $response->withStatus(401);
           } elseif ($existing['protocol'] !== $data['protocol']) {
             $errors[] = 'Protocol version mismatch when updating server.';
@@ -317,7 +332,7 @@ readonly class GameServersController
 
     // If we had any errors, report them
     if (!empty($errors)) {
-      $response->getBody()->write(json_encode(['errors' => $errors]));
+      $response->getBody()->write(ErrorSchema::getJSON(ErrorType::BadRequest, $errors));
       return $response
         ->withStatus(400)
         ->withHeader('Content-Type', 'application/json');
@@ -343,9 +358,23 @@ readonly class GameServersController
       new OA\PathParameter(name: 'port', description: 'Public port of the server', required: true, schema: new OA\Schema(type: 'integer'))
     ],
     responses: [
-      new OA\Response(response: 204, description: 'Deleted successfully'),
-      new OA\Response(response: 400, description: 'Invalid data provided'),
-      new OA\Response(response: 404, description: 'Server not found')
+      new OA\Response(response: 204, description: 'Deleted'),
+      new OA\Response(response: 400, description: 'Bad Request', content: [
+        'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
+          'type' => 'bad_request',
+          'errors' => [
+            'Missing server key.',
+          ]
+        ])
+      ]),
+      new OA\Response(response: 404, description: 'Not Found', content: [
+        'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
+          'type' => 'not_found',
+          'errors' => [
+            'Server not found.',
+          ]
+        ])
+      ])
     ]
   )]
   public function delete_one(Request $request, Response $response, GameServerHelper $game_server_helper, string $hostname, int $port): Response
@@ -378,11 +407,12 @@ readonly class GameServersController
       }
 
       // Didn't find a server that also used the provided key, so return a 404
+      $response->getBody()->write(ErrorSchema::getJSON(ErrorType::NotFound, ['Server not found.']));
       return $response->withStatus(404);
     }
     // Otherwise, show the errors
     else {
-      $response->getBody()->write(json_encode(['errors' => $errors]));
+      $response->getBody()->write(ErrorSchema::getJSON(ErrorType::BadRequest, $errors));
       return $response
         ->withStatus(400)
         ->withHeader('Content-Type', 'application/json');

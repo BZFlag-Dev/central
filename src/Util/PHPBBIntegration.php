@@ -162,7 +162,7 @@ class PHPBBIntegration
     }
 
     return [
-      'error' => 'Invalid username or password'
+      'error' => 'Username or password is incorrect'
     ];
   }
 

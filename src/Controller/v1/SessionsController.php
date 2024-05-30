@@ -22,6 +22,8 @@ declare(strict_types=1);
 
 namespace App\Controller\v1;
 
+use App\Controller\v1\Schema\ErrorSchema;
+use App\Controller\v1\Schema\ErrorType;
 use App\DatabaseHelper\SessionHelper;
 use App\Util\PHPBBIntegration;
 use Monolog\Logger;
@@ -64,16 +66,31 @@ readonly class SessionsController
           ]
         )
       ]),
-      new OA\Response(ref: '#/components/responses/400', response: 400),
-      new OA\Response(ref: '#/components/responses/401', response: 401),
-      new OA\Response(ref: '#/components/responses/429', response: 429)
+      new OA\Response(response: 400, description: 'Bad request', content: [
+        'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
+          'type' => 'bad_request',
+          'errors' => ['Body must be application/x-www-form-urlencoded.']
+        ])
+      ]),
+      new OA\Response(response: 401, description: 'Authentication Failure', content: [
+        'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
+          'type' => 'unauthorized',
+          'errors' => ['Username or password is incorrect']
+        ])
+      ]),
+      new OA\Response(response: 429, description: 'Rate Limit Exceeded', content: [
+        'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
+          'type' => 'rate_limit_exceeded',
+          'errors' => ['Too many failed login attempts. Temporarily locked out.']
+        ])
+      ])
     ]
   )]
   public function create(Request $request, Response $response, SessionHelper $session_helper, PHPBBIntegration $phpbb): Response
   {
     // Verify the body content type is a typical form
     if ($request->getHeaderLine('Content-Type') !== 'application/x-www-form-urlencoded') {
-      $response->getBody()->write(json_encode(['errors' => ['Body must be application/x-www-form-urlencoded.']]));
+      $response->getBody()->write(ErrorSchema::getJSON(ErrorType::BadRequest, ['Body must be application/x-www-form-urlencoded.']));
       return $response->withStatus(400);
     }
 
@@ -82,7 +99,7 @@ readonly class SessionsController
 
     // Username and password are required
     if (empty($data['username']) || empty($data['password'])) {
-      $response->getBody()->write(json_encode(['errors' => ['Username and password are required']]));
+      $response->getBody()->write(ErrorSchema::getJSON(ErrorType::Unauthorized, ['Username and password are required']));
       return $response
         ->withStatus(401)
         ->withHeader('Content-Type', 'application/json');
@@ -93,8 +110,8 @@ readonly class SessionsController
 
     // If there was an authentication error, just bail out here
     if (!empty($authentication_attempt['error'])) {
-      $response->getBody()->write(json_encode(['errors' => [$authentication_attempt['error']]]));
-      // TODO: Figure out a way to detect rate limiting failures and throw a 426 instead of a 401
+      $response->getBody()->write(ErrorSchema::getJSON(ErrorType::Unauthorized, [$authentication_attempt['error']]));
+      // TODO: Figure out a way to detect rate limiting failures and throw a 429 instead of a 401
       return $response
         ->withStatus(401)
         ->withHeader('Content-Type', 'application/json');
@@ -111,7 +128,7 @@ readonly class SessionsController
     }
     // Otherwise send an error back
     else {
-      $response->getBody()->write(json_encode(['errors' => ['Failed to generate session']]));
+      $response->getBody()->write(ErrorSchema::getJSON(ErrorType::InternalServerError, ['errors' => ['Failed to generate session']]));
       return $response
         ->withStatus(500)
         ->withHeader('Content-Type', 'application/json');
@@ -129,8 +146,18 @@ readonly class SessionsController
       new OA\Response(response: 200, description: 'Success', content: [
         'application/json' => new OA\JsonContent(ref: '#/components/schemas/session')
       ]),
-      new OA\Response(ref: '#/components/responses/404', response: 404),
-      new OA\Response(ref: '#/components/responses/429', response: 429)
+      new OA\Response(response: 404, description: 'Not Found', content: [
+        'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
+          'type' => 'not_found',
+          'errors' => ['Invalid session ID']
+        ])
+      ]),
+      new OA\Response(response: 429, description: 'Rate Limit Exceeded', content: [
+        'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
+          'type' => 'rate_limit_exceeded',
+          'errors' => ['Too many failed session lookups. Temporarily locked out.']
+        ])
+      ])
     ]
   )]
   public function get_one(Request $request, Response $response, SessionHelper $session_helper, string $session_id): Response
@@ -153,6 +180,7 @@ readonly class SessionsController
         'session_id' => $session_id
       ]);
 
+      $response->getBody()->write(ErrorSchema::getJSON(ErrorType::NotFound, ['errors' => ['Invalid session ID']]));
       return $response
         ->withStatus(404);
     }
@@ -168,8 +196,18 @@ readonly class SessionsController
     ],
     responses: [
       new OA\Response(ref: '#/components/responses/204', response: 204),
-      new OA\Response(ref: '#/components/responses/404', response: 404),
-      new OA\Response(ref: '#/components/responses/429', response: 429)
+      new OA\Response(response: 404, description: 'Not Found', content: [
+        'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
+          'type' => 'not_found',
+          'errors' => ['Invalid session ID']
+        ])
+      ]),
+      new OA\Response(response: 429, description: 'Rate Limit Exceeded', content: [
+        'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
+          'type' => 'rate_limit_exceeded',
+          'errors' => ['Too many failed session deletions. Temporarily locked out.']
+        ])
+      ])
     ]
   )]
   public function delete_one(Request $request, Response $response, SessionHelper $session_helper, string $session_id): Response
@@ -187,6 +225,7 @@ readonly class SessionsController
         'session_id' => $session_id
       ]);
 
+      $response->getBody()->write(ErrorSchema::getJSON(ErrorType::NotFound, ['errors' => ['Invalid session ID']]));
       return $response
         ->withStatus(404);
     }
