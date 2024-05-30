@@ -74,7 +74,60 @@ generate the specification, run the following commands:
 
 ```bash
 composer -d tools install
-./tools/vendor/bin/openapi src/Controller/v1 -o ../central.bzflag.org-docs/public/v1.yaml -b vendor/autoload.php
+./tools/vendor/bin/openapi src/Controller/v1 -o ../bzfls3-docs/public/v1.yaml -b vendor/autoload.php
+```
+
+Webserver Configuration
+-----------------------
+
+To allow compatibility with BZFlag versions older than 2.4.4, do not enforce HTTPS on the legacy virtual host. Remove
+any such redirect from the virtual host that might be added by certbot.
+
+To ensure that requests to the REST API are not silently upgraded from HTTP to HTTPS, do not automatically redirect
+HTTP request to HTTPS, except for the /docs path. Certbot will automatically create a permanent redirect, so move that
+to the <Directory> block for /docs.
+
+```apacheconf
+<VirtualHost *:80>
+        ServerName my.bzflag.whatever
+
+        DocumentRoot /var/www/bzfls3/public
+        <Directory /var/www/bzfls3/public>
+                Options -Indexes
+                Require all granted
+
+                RewriteEngine on
+                RewriteCond %{REQUEST_FILENAME} !-f
+                RewriteCond %{REQUEST_FILENAME} !-d
+                RewriteRule ^ index.php [QSA,L]
+        </Directory>
+</VirtualHost>
+
+<VirtualHost *:80>
+        ServerName central.bzflag.whatever
+
+        DocumentRoot /var/www/bzfls3/public
+        <Directory /var/www/bzfls3/public>
+                Options -Indexes
+                Require all granted
+
+                RewriteEngine on
+                RewriteCond %{REQUEST_FILENAME} !-f
+                RewriteCond %{REQUEST_FILENAME} !-d
+                RewriteRule ^ index.php [QSA,L]
+        </Directory>
+
+        Alias /docs /var/www/bzfls3-docs/public/
+        <Directory /var/www/bzfls3-docs/public/>
+                Options -Indexes
+                Require all granted
+
+                # Only redirect /docs to HTTPS to prevent silent upgrades to API requests
+                RewriteEngine on
+                RewriteCond %{SERVER_NAME} =central.bzflag.whatever
+                RewriteRule ^ https://%{SERVER_NAME}%{REQUEST_URI} [END,NE,R=permanent]
+        </Directory>
+</VirtualHost>
 ```
 
 License

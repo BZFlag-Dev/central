@@ -23,6 +23,7 @@ declare(strict_types=1);
 use App\Controller\LegacyListController;
 use App\Controller\v1\GameServersController;
 use App\Controller\v1\SessionsController;
+use App\Middleware\FailHTTP;
 use DI\Bridge\Slim\Bridge;
 use League\Config\Configuration;
 use Monolog\Handler\StreamHandler;
@@ -187,9 +188,9 @@ if ($_SERVER['SERVER_NAME'] === $config->get('legacy_host')) {
 }
 // Third generation server list which is a modern REST API
 else {
-  $app->get('/', function (Response $response): Response {
+  $app->get('/', function (Request $request, Response $response): Response {
     return $response
-      ->withHeader('Location', '/docs/')
+      ->withHeader('Location', "https://{$request->getUri()->getHost()}/docs/")
       ->withStatus(302);
   });
 
@@ -216,7 +217,7 @@ else {
     $group->get('/sessions/{session_id}', [SessionsController::class, 'get_one']);
     // Delete a session
     $group->delete('/sessions/{session_id}', [SessionsController::class, 'delete_one']);
-  });
+  })->add(FailHTTP::class);
 }
 
 $app->run();
