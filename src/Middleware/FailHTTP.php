@@ -26,10 +26,10 @@ use Nyholm\Psr7\Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Server\RequestHandlerInterface as RequestHandler;
 
-
 class FailHTTP
 {
-  public function __invoke(Request $request, RequestHandler $handler): Response {
+  public function __invoke(Request $request, RequestHandler $handler): Response
+  {
     if ($request->getUri()->getScheme() !== 'https') {
       $response = new Response();
       $response->getBody()->write('API can only be contacted over HTTPS.');
