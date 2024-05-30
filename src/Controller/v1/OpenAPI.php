@@ -32,7 +32,7 @@ use OpenApi\Attributes as OA;
     termsOfService: 'https://www.bzflag.org/terms-of-use/'
   ),
   servers: [
-    new OA\Server(url: 'https://central.bzflag.porteighty.org/v1-dev')
+    new OA\Server(url: '/v1-dev')
   ],
   tags: [
     new OA\Tag('Servers', description: 'Operations that deal with game servers'),
