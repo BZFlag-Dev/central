@@ -517,7 +517,7 @@ class LegacyListController
           }
         } // Otherwise, insert a new server entry
         else {
-          $sta = $this->pdo->prepare("INSERT INTO servers (host, port, hosting_key_id, protocol, game_info, description, owner) VALUES (:host, :port, :hosting_key_id, :protocol, :game_info, :description, :owner)");
+          $sta = $this->pdo->prepare("INSERT INTO servers (host, port, hosting_key_id, protocol, game_info, description, owner, build) VALUES (:host, :port, :hosting_key_id, :protocol, :game_info, :description, :owner, :build)");
           $sta->bindValue('host', $hostname);
           $sta->bindValue('port', $port, PDO::PARAM_INT);
           $sta->bindValue('hosting_key_id', $hosting_key['id'] ?? null, PDO::PARAM_INT);
@@ -525,6 +525,7 @@ class LegacyListController
           $sta->bindValue('game_info', $data['gameinfo']);
           $sta->bindValue('description', $data['title']);
           $sta->bindValue('owner', $server_owner ?? null);
+          $sta->bindValue('build', $data['build'] ?? null);
 
           if ($sta->execute() && !empty($data['advertgroups'])) {
             $advert_groups = explode(',', $data['advertgroups']);

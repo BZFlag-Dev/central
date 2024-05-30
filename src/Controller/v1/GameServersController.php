@@ -295,7 +295,7 @@ readonly class GameServersController
           }
         } // Otherwise, insert a new server entry
         else {
-          $sta = $this->pdo->prepare("INSERT INTO servers (host, port, hosting_key_id, protocol, game_info, world_hash, description, owner) VALUES (:hostname, :port, :hosting_key_id, :protocol, :game_info, :world_hash, :description, :owner)");
+          $sta = $this->pdo->prepare("INSERT INTO servers (host, port, hosting_key_id, protocol, game_info, world_hash, description, owner, build) VALUES (:hostname, :port, :hosting_key_id, :protocol, :game_info, :world_hash, :description, :owner, :build)");
           $sta->bindValue('hostname', $hostname);
           $sta->bindValue('port', $port, PDO::PARAM_INT);
           $sta->bindValue('hosting_key_id', $hosting_key['id'], PDO::PARAM_INT);
@@ -304,6 +304,7 @@ readonly class GameServersController
           $sta->bindValue('world_hash', $data['world_hash']);
           $sta->bindValue('description', $data['description']);
           $sta->bindValue('owner', $server_owner);
+          $sta->bindValue('build', $data['build'] ?? null);
 
           // If the server was created, and the advert groups is non-empty and does not contain the EVERYONE group,
           // then store the advert groups.
