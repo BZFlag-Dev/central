@@ -480,7 +480,7 @@ class LegacyListController
     // Verify that we can connect to the server
     if (empty($errors)) {
       try {
-        new BZFlagServer($hostname, (int)$port, $data['version']);
+        new BZFlagServer($hostname, $port, $data['version']);
       } catch (Exception $e) {
         $this->logger->error($e->getMessage(), [
           'hostname' => $hostname,
