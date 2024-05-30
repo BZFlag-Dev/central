@@ -32,7 +32,7 @@ use OpenApi\Attributes as OA;
     new OA\Property(property: 'errors', description: 'A array of human-readable details about the error response.', type: 'array', items: new OA\Items(type: 'string')),
   ]
 )]
-readonly class ErrorSchema
+class ErrorSchema
 {
   public static function getJSON(ErrorType $type, array $errors): string
   {
