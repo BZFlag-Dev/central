@@ -21,8 +21,8 @@ declare(strict_types=1);
  */
 
 use App\Controller\LegacyListController;
-use App\Controller\v1\GameServersController;
-use App\Controller\v1\SessionsController;
+use App\Controller\v1\GameServersController as GameServersControllerV1;
+use App\Controller\v1\SessionsController as SessionsControllerV1;
 use App\Middleware\FailHTTP;
 use DI\Bridge\Slim\Bridge;
 use League\Config\Configuration;
@@ -201,22 +201,22 @@ else {
     //
 
     // Get servers
-    $group->get('/servers', [GameServersController::class, 'get_many']);
+    $group->get('/servers', [GameServersControllerV1::class, 'get_many']);
     // Publish a new server or update an existing server
-    $group->put('/servers/{hostname}/{port:[1-9][0-9]*}', [GameServersController::class, 'create_or_update']);
+    $group->put('/servers/{hostname}/{port:[1-9][0-9]*}', [GameServersControllerV1::class, 'create_or_update']);
     // Delete the specified server from the list
-    $group->delete('/servers/{hostname}/{port:[1-9][0-9]*}', [GameServersController::class, 'delete_one']);
+    $group->delete('/servers/{hostname}/{port:[1-9][0-9]*}', [GameServersControllerV1::class, 'delete_one']);
 
     //
     // Sessions
     //
 
     // Create a session
-    $group->post('/sessions', [SessionsController::class, 'create']);
+    $group->post('/sessions', [SessionsControllerV1::class, 'create']);
     // Get information about a session
-    $group->get('/sessions/{session_id}', [SessionsController::class, 'get_one']);
+    $group->get('/sessions/{session_id}', [SessionsControllerV1::class, 'get_one']);
     // Delete a session
-    $group->delete('/sessions/{session_id}', [SessionsController::class, 'delete_one']);
+    $group->delete('/sessions/{session_id}', [SessionsControllerV1::class, 'delete_one']);
   })->add(FailHTTP::class);
 }
 
