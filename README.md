@@ -2,7 +2,7 @@ BZFlag Central Services v3
 ==========================
 
 The BZFlag project hosts centralized services for listing public servers and authenticating registered players. This
-project is the third iteration of the central services and aims to provide a legacy interface compatible with the v2
+project is the third generation of the central services and aims to provide a legacy interface compatible with the v2
 services and also provide a modern REST API with additional functionality. Another goal is support for CGNAT and, on the
 REST API, IPv6, both of which are pain points with the current v2 authentication system.
 
@@ -10,7 +10,13 @@ Requirements
 ------------
 
 * Apache
-* PHP 8.2 FPM
+* PHP 8.2 FPM with the following extensions:
+  * PDO
+  * MySQL
+  * Redis
+  * JSON
+  * mbstring
+  * ctype
 * Composer
 * MariaDB
 * Redis
@@ -52,7 +58,7 @@ See public/index.php for additional configuration options.
 Database Setup
 --------------
 
-This assumes the phpbb database is 'forum' with a prefix of 'phpbb_', the central services database is 'central', and
+This assumes the phpBB database is 'forum' with a prefix of 'phpbb_', the central services database is 'central', and
 the central services user is 'central'. Adjust the below to match your environment.
 
 ```mysql
