@@ -23,28 +23,24 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\DatabaseHelper\GameServerHelper;
+use App\DatabaseHelper\TokenHelper;
 use App\Misc\BZFlagServer;
 use App\Util\PHPBBIntegration;
 use App\Util\Valid;
 use ErrorException;
 use Exception;
-use League\Config\Configuration;
 use Monolog\Logger;
 use PDO;
 use PDOException;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
-use Random\RandomException;
 use Slim\App;
 use Slim\Views\Twig;
 
 class LegacyListController
 {
-  private int $token_lifetime;
-
-  public function __construct(private readonly App $app, private readonly PDO $pdo, readonly Configuration $config, private readonly Logger $logger)
+  public function __construct(private readonly App $app, private readonly PDO $pdo, private readonly Logger $logger)
   {
-    $this->token_lifetime = $config->get('token_lifetime');
   }
 
   public function db(Request $request, Response $response): Response
@@ -102,48 +98,25 @@ class LegacyListController
     }
     // Otherwise, unless we're told to skip it, let's generate, store, and return a token
     elseif (!$skip_token) {
-      try {
-        // Generate a 20 character string for the authentication token. The client/server allocate 22 bytes, including
-        // the terminating NUL, for the token.
-        $token = bin2hex(random_bytes(10));
-        $statement = $this->pdo->prepare('INSERT INTO auth_tokens (user_id, token, player_ipv4, server_host, server_port) VALUES (:user_id, :token, :player_ipv4, :server_host, :server_port)');
-        $statement->bindValue('user_id', $authentication_attempt['bzid'], PDO::PARAM_INT);
-        $statement->bindValue('token', $token);
-        $statement->bindValue('player_ipv4', $_SERVER['REMOTE_ADDR']);
-        $statement->bindValue('server_host', $server_host ?? null);
-        $statement->bindValue('server_port', $server_port ?? null, PDO::PARAM_INT);
-        $statement->execute();
+      $token_helper = $this->app->getContainer()->get(TokenHelper::class);
+      $token = $token_helper->create(
+        bzid: $authentication_attempt['bzid'],
+        player_ipv4: $_SERVER['REMOTE_ADDR'],
+        server_host: $server_host ?? null,
+        server_port: $server_port ?? null
+      );
+
+      if ($token !== null) {
         if (func_num_args() > 1) {
           $bzid = $authentication_attempt['bzid'];
         }
         return "TOKEN: $token\n";
-      } catch (RandomException|PDOException $e) {
-        $this->logger->error('Failed to generate authentication token', ['error' => $e->getMessage()]);
+      } else {
         return "NOTOK: Failed to generate token...\n";
       }
     }
 
     return '';
-  }
-
-  private function create_token(int $bzid, string $server_host = null, int $server_port = null): string|false
-  {
-    try {
-      // Generate a 20 character string for the authentication token. The client/server allocate 22 bytes, including
-      // the terminating NUL, for the token.
-      $token = bin2hex(random_bytes(10));
-      $statement = $this->pdo->prepare('INSERT INTO auth_tokens (user_id, token, player_ipv4, server_host, server_port) VALUES (:user_id, :token, :player_ipv4, :server_host, :server_port)');
-      $statement->bindValue('user_id', $bzid, PDO::PARAM_INT);
-      $statement->bindValue('token', $token);
-      $statement->bindValue('player_ipv4', $_SERVER['REMOTE_ADDR']);
-      $statement->bindValue('server_host', $server_host ?? null);
-      $statement->bindValue('server_port', $server_port ?? null, PDO::PARAM_INT);
-      $statement->execute();
-      return $token;
-    } catch (RandomException|PDOException $e) {
-      $this->logger->error('Failed to generate authentication token', ['error' => $e->getMessage()]);
-      return false;
-    }
   }
 
   private function process_tokens(array $data): string
@@ -152,14 +125,10 @@ class LegacyListController
       return '';
     }
 
+    $token_helper = $this->app->getContainer()->get(TokenHelper::class);
+
     // Delete stale tokens
-    try {
-      $stmt = $this->pdo->prepare('DELETE FROM auth_tokens WHERE DATE_ADD(when_created, INTERVAL :token_lifetime SECOND) <= NOW()');
-      $stmt->bindValue('token_lifetime', $this->token_lifetime, PDO::PARAM_INT);
-      $stmt->execute();
-    } catch (PDOException $e) {
-      $this->logger->error('Failed purging stale authentication tokens', ['error' => $e->getMessage()]);
-    }
+    $token_helper->purgeStale();
 
     // Information to return
     $return = '';
@@ -183,25 +152,15 @@ class LegacyListController
     // Take the horrible group list and split it out into an array of groups, removing any empty values
     $groups = $split_without_empty($data['groups'] ?? '');
 
-    // Prepare SQL statements
-    try {
-      $select_token_statement = $this->pdo->prepare('SELECT player_ipv4, server_host, server_port FROM auth_tokens WHERE user_id = :user_id AND token = :token AND TIMESTAMPDIFF(SECOND, when_created, NOW()) < :token_lifetime');
-      $select_token_statement->bindValue('token_lifetime', $this->token_lifetime, PDO::PARAM_INT);
-      $delete_token_statement = $this->pdo->prepare('DELETE FROM auth_tokens WHERE user_id = :user_id AND token = :token');
-    } catch (PDOException $e) {
-      $this->logger->critical('Failed to prepare one or more statements for processing tokens.', ['error' => $e->getMessage()]);
-      return "ERROR: Fatal error when attempting to check tokens.\n";
-    }
-
     // Loop through each token to process
     foreach($split_without_empty($data['checktokens']) as $checktoken) {
-      list($remaining, $token_string) = explode('=', $checktoken);
+      list($remaining, $token) = explode('=', $checktoken);
       list($callsign, $player_ipv4) = explode('@', $remaining);
 
       // If we have both a callsign and a token, process it
-      if (!empty($callsign) && !empty($token_string)) {
+      if (!empty($callsign) && !empty($token)) {
         // TODO: Does anything even care about this message? Is it just for troubleshooting?
-        $return .= "MSG: checktoken callsign=$callsign, ip={$_SERVER['REMOTE_ADDR']}, token=$token_string";
+        $return .= "MSG: checktoken callsign=$callsign, ip={$_SERVER['REMOTE_ADDR']}, token=$token";
         foreach($groups as $group) {
           $return .= " group=$group";
         }
@@ -217,76 +176,28 @@ class LegacyListController
         }
 
         // If a token wasn't provided, don't even bother checking the database
-        if ($token_string === 'NONE') {
+        if ($token === 'NONE') {
           $return .= "TOKBAD: $callsign\n";
           continue;
         }
 
-        try {
-          // Fetch the token information
-          $select_token_statement->bindValue('user_id', $user_id, PDO::PARAM_INT);
-          $select_token_statement->bindValue('token', $token_string);
-          $select_token_statement->execute();
-          $token = $select_token_statement->fetch();
-
-          if (!$token) {
-            $this->logger->error('Authentication token not found', ['token' => $token_string]);
-            $return .= "TOKBAD: $callsign\n";
-            continue;
-          }
-
-          // Delete the token so it can't be used again
-          $delete_token_statement->bindValue('user_id', $user_id, PDO::PARAM_INT);
-          $delete_token_statement->bindValue('token', $token_string);
-          $delete_token_statement->execute();
-
-          // If the token has a host set, and we have a host to compare it to, check that. This will allow authentication to
-          // work in situations where the player IP exposed to the list and the game server differ, such as CGNAT or
-          // dual-stack IPv4/6 networks.
-          if (!empty($token['server_host']) && !empty($server_host) && $token['server_host'] === $server_host && $token['server_port'] === $server_port) {
-            $this->logger->info('Successfully consumed token using host/port match', [
-              'callsign' => $callsign,
-              'host' => $server_host,
-              'port' => $server_port,
-            ]);
-          }
-          // Otherwise, use the old IPv4 comparison check if the token has one
-          elseif (!empty($player_ipv4) && $token['player_ipv4'] === $player_ipv4) {
-            $this->logger->info('Successfully consumed token using player IPv4 match', [
-              'callsign' => $callsign
-            ]);
-          }
-          // Otherwise, fail the authentication attempt
-          else {
-            $this->logger->error('Authentication token mismatch', [
-              'callsign' => $callsign,
-              'token_ip' => $token['player_ipv4'],
-              'actual_ip' => $player_ipv4,
-              'token_host' => $token['server_host'],
-              'actual_host' => $server_host,
-              'token_port' => $token['server_port'],
-              'actual_port' => $server_port
-            ]);
-            $return .= "TOKBAD: $callsign\n";
-            continue;
-          }
-
+        if ($token_helper->validate($callsign, $user_id, $token, $player_ipv4, $server_host ?? null, $server_port ?? null)) {
           $return .= "BZID: $user_id $callsign\nTOKGOOD: $callsign";
-          // Check group membership, if the server cares
-          if (sizeof($groups) > 0) {
-            $player_groups = $phpbb->get_groups_by_user_id($user_id);
-            if (!empty($player_groups)) {
-              $common_groups = array_intersect($groups, $player_groups);
-              if (sizeof($common_groups) > 0) {
-                $return .= ':' . implode(':', $common_groups);
-              }
-            }
-          }
-          $return .= "\n";
-        } catch (PDOException $e) {
-          $this->logger->error('Database error reading token', ['token' => $token, 'user_id' => $user_id, 'error' => $e->getMessage()]);
+        } else {
           $return .= "TOKBAD: $callsign\n";
         }
+
+        // Check group membership, if the server cares
+        if (sizeof($groups) > 0) {
+          $player_groups = $phpbb->get_groups_by_user_id($user_id);
+          if (!empty($player_groups)) {
+            $common_groups = array_intersect($groups, $player_groups);
+            if (sizeof($common_groups) > 0) {
+              $return .= ':' . implode(':', $common_groups);
+            }
+          }
+        }
+        $return .= "\n";
       }
     }
 
@@ -693,8 +604,14 @@ class LegacyListController
           }
 
           // Try creating a token
-          $token = $this->create_token($authentication_attempt['bzid'], $parts['host'], $parts['port']);
-          if ($token === false) {
+          $token_helper = $this->app->getContainer()->get(TokenHelper::class);
+          $token = $token_helper->create(
+            bzid: $authentication_attempt['bzid'],
+            server_host: $parts['host'],
+            server_port: $parts['port']
+          );
+
+          if ($token === null) {
             throw new Exception('There was an error creating an authentication token.');
           }
 
