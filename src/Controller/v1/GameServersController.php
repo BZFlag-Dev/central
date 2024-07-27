@@ -87,8 +87,8 @@ readonly class GameServersController
 
     // Fetch the servers
     $servers = $game_server_helper->get_many(
-      protocol: $data['protocol'],
-      hostname: $data['hostname'],
+      protocol: $data['protocol'] ?? null,
+      hostname: $data['hostname'] ?? null,
       user_id: $user_id,
     );
 
