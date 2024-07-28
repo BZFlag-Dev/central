@@ -112,12 +112,17 @@ $container->set(PDO::class, function (Configuration $config): PDO {
   ]);
 });
 
-$container->set(Redis::class, function (Configuration $config): Redis {
+$container->set(Redis::class, function (Configuration $config, Logger $logger): Redis {
   $c = $config->get('redis');
   $redis = new Redis();
-  $redis->connect($c['host']);
-  if (!empty($c['password'])) {
-    $redis->auth($c['password']);
+  try {
+    $redis->connect($c['host']);
+    if (!empty($c['password'])) {
+      $redis->auth($c['password']);
+    }
+  }
+  catch (RedisException $e) {
+    $logger->error("Redis connection error.", ['error' => $e->getMessage()]);
   }
   return $redis;
 });
