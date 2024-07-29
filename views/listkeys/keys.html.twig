@@ -6,8 +6,9 @@
         <h2>New Key</h2>
         Publishing a server on the public server list requires a hostname that points to your server's IP address. If
         you do not have a hostname, you may buy a domain from any registrar, or use a free service such as
-        <a href="https://freedns.afraid.org">FreeDNS</a> or <a href="https://www.noip.com/">NoIP</a>. The generated key
-        will only work for servers published using the specified hostname.
+        <a href="https://freedns.afraid.org" target="_blank" rel="nofollow noopener">FreeDNS</a> or
+        <a href="https://www.noip.com/" target="_blank" rel="nofollow noopener">NoIP</a>. The generated key will only
+        work for servers published using the specified hostname.
 
         <form action="{{ url_for('listkeys') }}" method="post">
             <input type="hidden" name="{{ csrf.name_key }}" value="{{ csrf.name }}">
