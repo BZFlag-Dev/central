@@ -31,6 +31,7 @@
         ]
     },
     "require-dev": {
-        "zircote/swagger-php": "^4.8"
+        "zircote/swagger-php": "^4.8",
+        "phpunit/phpunit": "^11.2"
     }
 }
