@@ -107,6 +107,7 @@ $container->set(Twig::class, function () {
 $container->set(PDO::class, function (Configuration $config): PDO {
   $c = $config->get('database');
   return new PDO("mysql:dbname={$c['database']};host={$c['host']}", $c['username'], $c['password'], [
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES 'utf8mb4'"
   ]);
