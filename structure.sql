@@ -37,7 +37,7 @@ CREATE INDEX idx_hosting_keys_user_id ON hosting_keys (user_id);
 CREATE TABLE auth_tokens (
     user_id INT UNSIGNED NOT NULL,
     token VARCHAR(255) NOT NULL,
-    player_ipv4 INET4 NULL,
+    player_ipv4 VARCHAR(16) NULL,
     server_host VARCHAR(255) NULL,
     server_port SMALLINT UNSIGNED NULL,
     when_created TIMESTAMP NOT NULL DEFAULT NOW(),
