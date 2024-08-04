@@ -121,8 +121,7 @@ $container->set(Redis::class, function (Configuration $config, Logger $logger): 
     if (!empty($c['password'])) {
       $redis->auth($c['password']);
     }
-  }
-  catch (RedisException $e) {
+  } catch (RedisException $e) {
     $logger->error("Redis connection error.", ['error' => $e->getMessage()]);
   }
   return $redis;
