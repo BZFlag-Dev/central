@@ -23,6 +23,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\DatabaseHelper\GameServerHelper;
+use App\DatabaseHelper\HostingKeysHelper;
 use App\DatabaseHelper\TokenHelper;
 use App\Misc\BZFlagServer;
 use App\Util\PHPBBIntegration;
@@ -30,16 +31,15 @@ use App\Util\Valid;
 use ErrorException;
 use Exception;
 use Monolog\Logger;
-use PDO;
 use PDOException;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\App;
 use Slim\Views\Twig;
 
-class LegacyListController
+readonly class LegacyListController
 {
-  public function __construct(private readonly App $app, private readonly PDO $pdo, private readonly Logger $logger)
+  public function __construct(private App $app, private PHPBBIntegration $phpbb, private Logger $logger)
   {
   }
 
@@ -58,12 +58,12 @@ class LegacyListController
 
     // Pick an action, any action, no not that one
     return match ($data['action'] ?? '') {
-      'LIST' => $this->list($request, $response, $data),
-      'GETTOKEN' => $this->get_token($request, $response, $data),
-      'ADD' => $this->add_server($request, $response, $data),
-      'REMOVE' => $this->remove_server($request, $response, $data),
-      'CHECKTOKENS' => $this->check_tokens($request, $response, $data),
-      default => $this->usage($request, $response),
+      'LIST' => $this->list($response, $data),
+      'GETTOKEN' => $this->get_token($response, $data),
+      'ADD' => $this->add_server($response, $data),
+      'REMOVE' => $this->remove_server($response, $data),
+      'CHECKTOKENS' => $this->check_tokens($response, $data),
+      default => $this->usage($response),
     };
   }
 
@@ -82,11 +82,8 @@ class LegacyListController
       }
     }
 
-    // Grab our phpBB helper
-    $phpbb = $this->app->getContainer()->get(PHPBBIntegration::class);
-
     // Attempt to authenticate the player using the provided callsign and password
-    $authentication_attempt = $phpbb->authenticate_player($data['callsign'], $data['password']);
+    $authentication_attempt = $this->phpbb->authenticate_player($data['callsign'], $data['password']);
 
     // If the authentication failed, throw a NOTOK back
     if (!empty($authentication_attempt['error'])) {
@@ -98,7 +95,12 @@ class LegacyListController
     }
     // Otherwise, unless we're told to skip it, let's generate, store, and return a token
     elseif (!$skip_token) {
+      /**
+       * @var TokenHelper $token_helper
+       */
       $token_helper = $this->app->getContainer()->get(TokenHelper::class);
+
+      // Create a token
       $token = $token_helper->create(
         bzid: $authentication_attempt['bzid'],
         player_ipv4: $_SERVER['REMOTE_ADDR'],
@@ -125,10 +127,13 @@ class LegacyListController
       return '';
     }
 
+    /**
+     * @var TokenHelper $token_helper
+     */
     $token_helper = $this->app->getContainer()->get(TokenHelper::class);
 
     // Delete stale tokens
-    $token_helper->purgeStale();
+    $token_helper->delete_stale();
 
     // Information to return
     $return = '';
@@ -140,9 +145,6 @@ class LegacyListController
       } catch (Exception) {
       }
     }
-
-    // Get the phpbb helper
-    $phpbb = $this->app->getContainer()->get(PHPBBIntegration::class);
 
     // Function to split string on CRLF or LF separators and remove empty values
     $split_without_empty = function ($string) {
@@ -167,7 +169,7 @@ class LegacyListController
         $return .= "\n";
 
         // Try to fetch the user ID for this user
-        $user_id = $phpbb->get_user_id_by_username($callsign);
+        $user_id = $this->phpbb->get_user_id_by_username($callsign);
 
         // If it doesn't exist, identify the user as unregistered and move on
         if ($user_id === null) {
@@ -189,7 +191,7 @@ class LegacyListController
 
         // Check group membership, if the server cares
         if (sizeof($groups) > 0) {
-          $player_groups = $phpbb->get_groups_by_user_id($user_id);
+          $player_groups = $this->phpbb->get_groups_by_user_id($user_id);
           if (!empty($player_groups)) {
             $common_groups = array_intersect($groups, $player_groups);
             if (sizeof($common_groups) > 0) {
@@ -250,7 +252,7 @@ class LegacyListController
     return false;
   }
 
-  private function list(Request $request, Response $response, array $data): Response
+  private function list(Response $response, array $data): Response
   {
     $body = $response->getBody();
 
@@ -266,8 +268,12 @@ class LegacyListController
       $body->write($auth);
     }
 
-    // Fetch the servers
+    /**
+     * @var GameServerHelper $game_servers_helper
+     */
     $game_servers_helper = $this->app->getContainer()->get(GameServerHelper::class);
+
+    // Fetch the servers
     $servers = $game_servers_helper->get_many(
       protocol: $data['version'] ?? null,
       user_id: $user_id ?? null,
@@ -305,14 +311,14 @@ class LegacyListController
       ->withHeader('Content-Type', 'text/plain');
   }
 
-  private function get_token(Request $request, Response $response, array $data): Response
+  private function get_token(Response $response, array $data): Response
   {
     $response->getBody()->write($this->authenticate_player($data));
     return $response
       ->withHeader('Content-Type', 'text/plain');
   }
 
-  private function add_server(Request $request, Response $response, array $data): Response
+  private function add_server(Response $response, array $data): Response
   {
     // Validate the provided values
     $errors = [];
@@ -358,22 +364,24 @@ class LegacyListController
         $errors[] = 'Missing server authentication key.';
       } else {
         try {
-          $statement = $this->pdo->prepare('SELECT id, host, user_id FROM hosting_keys WHERE key_string = :key_string');
-          $statement->bindValue('key_string', $data['key']);
-          $statement->execute();
-          $hosting_key = $statement->fetch();
-          if (!$hosting_key) {
+          /**
+           * @var HostingKeysHelper $hosting_key_helper
+           */
+          $hosting_key_helper = $this->app->getContainer()->get(HostingKeysHelper::class);
+
+          $hosting_key = $hosting_key_helper->get_one_by_key($data['key']);
+
+          if ($hosting_key === null) {
             $errors[] = 'Invalid server authentication key.';
           } else {
             // The host on the key must exactly match the public address
             if (strcasecmp($hosting_key['host'], $hostname) !== 0) {
               $errors[] = "Host mismatch for server authentication key.";
             } else {
-              // Get the phpbb helper
-              $phpbb = $this->app->getContainer()->get(PHPBBIntegration::class);
+
 
               // Attempt to get the server owner name
-              $server_owner = $phpbb->get_username_by_user_id($hosting_key['user_id']);
+              $server_owner = $this->phpbb->get_username_by_user_id($hosting_key['user_id']);
 
               // If the owner lookup failed, error
               if (!$server_owner) {
@@ -404,62 +412,81 @@ class LegacyListController
 
     // If we have no errors up to this point, add the server
     if (empty($errors)) {
-      try {
-        // Check if the server already exists
-        $sta = $this->pdo->prepare('SELECT id, protocol, hosting_key_id FROM servers WHERE host = :host AND port = :port LIMIT 1');
-        $sta->bindValue('host', $hostname);
-        $sta->bindValue('port', $port, PDO::PARAM_INT);
-        $sta->execute();
-        $existing = $sta->fetch();
+      /**
+       * @var GameServerHelper $game_server_helper
+       */
+      $game_server_helper = $this->app->getContainer()->get(GameServerHelper::class);
 
-        // If this server already exists, update it
-        if ($existing) {
-          if (!empty($hosting_key) && $existing['hosting_key_id'] !== $hosting_key['id']) {
-            $errors[] = 'Hosting key mismatch when updating server.';
-          } elseif ($existing['protocol'] !== $data['version']) {
-            $errors[] = 'Protocol version mismatch when updating server.';
-          } else {
-            $sta = $this->pdo->prepare("UPDATE servers SET game_info = :game_info, description = :description, owner = :owner, when_updated = NOW() WHERE id = :id");
-            $sta->bindValue('id', $existing['id'], PDO::PARAM_INT);
-            $sta->bindValue('game_info', $data['gameinfo']);
-            $sta->bindValue('description', $data['title']);
-            $sta->bindValue('owner', $server_owner ?? null);
-            $sta->execute();
+      // Check if the server already exists
+      $existing = $game_server_helper->get_info_from_host_and_port($hostname, $port);
+
+      // If this server already exists, update it
+      if ($existing) {
+        if (!empty($hosting_key) && $existing['hosting_key_id'] !== $hosting_key['id']) {
+          $errors[] = 'Hosting key mismatch when updating server.';
+        } elseif ($existing['protocol'] !== $data['version']) {
+          $errors[] = 'Protocol version mismatch when updating server.';
+        } else {
+          $args = [
+            'id' => $existing['id'],
+            'game_info' => $data['gameinfo'],
+            'description' => $data['title']
+          ];
+          if ($server_owner) {
+            $args['owner'] = $server_owner;
           }
-        } // Otherwise, insert a new server entry
-        else {
-          $sta = $this->pdo->prepare("INSERT INTO servers (host, port, hosting_key_id, protocol, game_info, description, owner, build) VALUES (:host, :port, :hosting_key_id, :protocol, :game_info, :description, :owner, :build)");
-          $sta->bindValue('host', $hostname);
-          $sta->bindValue('port', $port, PDO::PARAM_INT);
-          $sta->bindValue('hosting_key_id', $hosting_key['id'] ?? null, PDO::PARAM_INT);
-          $sta->bindValue('protocol', $data['version']);
-          $sta->bindValue('game_info', $data['gameinfo']);
-          $sta->bindValue('description', $data['title']);
-          $sta->bindValue('owner', $server_owner ?? null);
-          $sta->bindValue('build', $data['build'] ?? null);
 
-          if ($sta->execute() && !empty($data['advertgroups'])) {
+          if (!$game_server_helper->update(...$args)) {
+            $errors[] = 'Failed to update server.';
+          }
+        }
+      } // Otherwise, insert a new server entry
+      else {
+        $args = [
+          'protocol' => $data['version'],
+          'host' => $hostname,
+          'port' => $port,
+          'game_info' => $data['gameinfo'],
+          'description' => $data['title']
+        ];
+        if ($hosting_key['id']) {
+          $args['hosting_key_id'] = $hosting_key['id'];
+        }
+        if ($server_owner) {
+          $args['owner'] = $server_owner;
+        }
+        if ($data['build']) {
+          $args['build'] = $data['build'];
+        }
+
+        // Try creating the server
+        $server_id = $game_server_helper->create(...$args);
+        if ($server_id === false) {
+          $errors[] = 'Failed to create server.';
+        } else {
+          // If the server was added, and we have advert groups, associate them with the server
+          if (!empty($data['advertgroups'])) {
+            // Split the comma separated list of groups
             $advert_groups = explode(',', $data['advertgroups']);
+
+            // Ensure the list isn't empty and that it doesn't contain the EVERYONE group
             if (!empty($advert_groups) && !in_array('EVERYONE', $advert_groups, true)) {
-              $server_id = $this->pdo->lastInsertId();
-              if (!isset($phpbb)) {
-                $phpbb = $this->app->getContainer()->get(PHPBBIntegration::class);
-              }
-              $sta = $this->pdo->prepare('INSERT INTO server_advert_groups (server_id, group_id) VALUES (:server_id, :group_id)');
-              $sta->bindValue('server_id', $server_id, PDO::PARAM_INT);
-              foreach($advert_groups as $advert_group) {
-                $group_id = $phpbb->get_group_id_by_name($advert_group);
+              // Look up the group IDs and populate a list
+              $group_ids = [];
+              foreach ($advert_groups as $advert_group) {
+                $group_id = $this->phpbb->get_group_id_by_name($advert_group);
                 if ($group_id) {
-                  $sta->bindValue('group_id', $group_id);
-                  $sta->execute();
+                  $group_ids[] = $group_id;
                 }
+              }
+
+              // If we have some valid groups, create the advert groups
+              if (sizeof($group_ids) > 0) {
+                $game_server_helper->create_advert_groups($server_id, $group_ids);
               }
             }
           }
         }
-      } catch(PDOException $e) {
-        $this->logger->error('Database error when adding or updating server.', ['error' => $e->getMessage()]);
-        $errors[] = 'Database error when adding or updating the server.';
       }
     }
 
@@ -487,7 +514,7 @@ class LegacyListController
       ->withHeader('Content-Type', 'text/plain');
   }
 
-  private function remove_server(Request $request, Response $response, array $data): Response
+  private function remove_server(Response $response, array $data): Response
   {
     $errors = [];
 
@@ -503,9 +530,13 @@ class LegacyListController
     }
 
     if (empty($errors)) {
-      // Fetch information about this server
+      /**
+       * @var GameServerHelper $game_server_helper
+       */
       $game_server_helper = $this->app->getContainer()->get(GameServerHelper::class);
-      $server = $game_server_helper->get_id_and_key_from_hostname_and_port($hostname, $port);
+
+      // Fetch information about this server
+      $server = $game_server_helper->get_info_from_host_and_port($hostname, $port);
 
       // If the server exists, let's decide if we allow the removal
       if ($server) {
@@ -534,12 +565,22 @@ class LegacyListController
       ->withHeader('Content-Type', 'text/plain');
   }
 
-  private function check_tokens(Request $request, Response $response, array $data): Response
+  private function check_tokens(Response $response, array $data): Response
   {
     // Process tokens
     $response->getBody()->write($this->process_tokens($data));
     return $response
       ->withHeader('Content-Type', 'text/plain');
+  }
+
+  private function usage(Response $response): Response
+  {
+    /**
+     * @var Twig $twig
+     */
+    $twig = $this->app->getContainer()->get(Twig::class);
+
+    return $twig->render($response, 'legacy_usage.html.twig');
   }
 
   public function weblogin(Request $request, Response $response, Twig $twig): Response
@@ -593,18 +634,19 @@ class LegacyListController
         if (empty($data['username']) || empty($data['password'])) {
           throw new Exception('Your username and password must be provided.');
         } else {
-          // Grab our phpBB helper
-          $phpbb = $this->app->getContainer()->get(PHPBBIntegration::class);
-
           // Attempt to authenticate the player using the provided callsign and password
-          $authentication_attempt = $phpbb->authenticate_player($data['username'], $data['password']);
+          $authentication_attempt = $this->phpbb->authenticate_player($data['username'], $data['password']);
           if (!empty($authentication_attempt['error'])) {
             $this->logger->error('Player authentication failure', ['error' => $authentication_attempt['error']]);
             throw new Exception($authentication_attempt['error']);
           }
 
-          // Try creating a token
+          /**
+           * @var TokenHelper $token_helper
+           */
           $token_helper = $this->app->getContainer()->get(TokenHelper::class);
+
+          // Try creating a token
           $token = $token_helper->create(
             bzid: $authentication_attempt['bzid'],
             server_host: $parts['host'],
@@ -637,7 +679,7 @@ class LegacyListController
     return $twig->render($response, 'weblogin.html.twig', $template_variables);
   }
 
-  public function listkeys(Request $request, Response $response, Twig $twig): Response
+  public function listkeys(Request $request, Response $response, Twig $twig, HostingKeysHelper $hosting_key_helper): Response
   {
     // Grab the request data for this request
     $data = ($request->getMethod() === 'POST') ? $request->getParsedBody() : $request->getQueryParams();
@@ -656,11 +698,8 @@ class LegacyListController
 
       // If the user is trying to log in, process that
       elseif ($action === 'login') {
-        // Get the phpbb helper
-        $phpbb = $this->app->getContainer()->get(PHPBBIntegration::class);
-
         // Attempt the login
-        $authentication_attempt = $phpbb->authenticate_player($data['username'], $data['password']);
+        $authentication_attempt = $this->phpbb->authenticate_player($data['username'], $data['password']);
 
         // If it failed, set a flash message
         if (!empty($authentication_attempt['error'])) {
@@ -686,54 +725,19 @@ class LegacyListController
         if (empty($data['hostname'])) {
           $_SESSION['listkeys_flash'] = 'A hostname must be provided when creating a key';
         } else {
-          // First, try to create a unique key
-          $stmt_get = $this->pdo->prepare('SELECT id FROM hosting_keys WHERE key_string = :key_string');
-          try {
-            for ($i = 0; $i < 20; $i++) {
-              // Generate a key
-              $key_string = bin2hex(random_bytes(20));
+          $hosting_key = $hosting_key_helper->create($data['hostname'], $_SESSION['listkeys_bzid']);
 
-              // Verify it doesn't already exist
-              $stmt_get->bindValue('key_string', $key_string);
-              $stmt_get->execute();
-              $row = $stmt_get->fetch();
-
-              // If it doesn't exist, store it and bail out of the loop
-              if (!$row) {
-                $stmt_create = $this->pdo->prepare('INSERT INTO hosting_keys (key_string, host, user_id) VALUES (:key_string, :host, :user_id)');
-                $stmt_create->bindValue('key_string', $key_string);
-                $stmt_create->bindValue('host', $data['hostname']);
-                $stmt_create->bindValue('user_id', $_SESSION['listkeys_bzid']);
-                if ($stmt_create->execute()) {
-                  $_SESSION['listkeys_flash'] = 'Successfully created key';
-                  break;
-                }
-              }
-            }
-
-            // If we failed to create a key, notify the user
-            if ($i === 20) {
-              throw new Exception('Failed to generate a unique key');
-            }
-          } catch (Exception $e) {
-            $this->logger->error('Hosting key generation failure', ['error' => $e->getMessage()]);
-            $_SESSION['listkeys_flash'] = 'There was an error generating a key';
+          if ($hosting_key !== null) {
+            $_SESSION['listkeys_flash'] = 'Successfully created key';
           }
         }
       }
 
       // The user is attempting to delete an existing key
       elseif ($action === 'delete') {
-        try {
-          // Delete a key matching the key id and user id
-          $stmt = $this->pdo->prepare('DELETE FROM hosting_keys WHERE id = :id AND user_id = :user_id');
-          $stmt->bindValue('id', $data['id'], PDO::PARAM_INT);
-          $stmt->bindValue('user_id', $_SESSION['listkeys_bzid'], PDO::PARAM_INT);
-          if ($stmt->execute()) {
-            $_SESSION['listkeys_flash'] = 'Successfully deleted key';
-          }
-        } catch (Exception $e) {
-          $this->logger->error('Hosting key deletion failure', ['error' => $e->getMessage()]);
+        // Delete a key matching the key id and user id
+        if ($hosting_key_helper->delete((int)$data['id'], $_SESSION['listkeys_bzid'])) {
+          $_SESSION['listkeys_flash'] = 'Successfully deleted key';
         }
       }
 
@@ -782,14 +786,7 @@ class LegacyListController
       // Otherwise, show the key management page
       else {
         // Fetch a list of existing keys for this user
-        try {
-          $stmt = $this->pdo->prepare('SELECT id, key_string, host FROM hosting_keys WHERE user_id = :user_id');
-          $stmt->bindValue('user_id', $_SESSION['listkeys_bzid'], PDO::PARAM_INT);
-          $stmt->execute();
-          $keys = $stmt->fetchAll();
-        } catch (PDOException $e) {
-          $this->logger->error('Hosting key fetch failure', ['error' => $e->getMessage()]);
-        }
+        $keys = $hosting_key_helper->get_many_by_user($_SESSION['listkeys_bzid']);
 
         $template_variables = [
           'bzid' => $_SESSION['listkeys_bzid'],
@@ -806,11 +803,5 @@ class LegacyListController
         return $twig->render($response, 'listkeys/keys.html.twig', $template_variables);
       }
     }
-  }
-
-  private function usage(Request $request, Response $response): Response
-  {
-    $twig = $this->app->getContainer()->get(Twig::class);
-    return $twig->render($response, 'legacy_usage.html.twig');
   }
 }

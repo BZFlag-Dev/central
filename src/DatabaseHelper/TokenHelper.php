@@ -37,17 +37,6 @@ class TokenHelper
     $this->token_lifetime = $config->get('token_lifetime');
   }
 
-  public function purgeStale(): void
-  {
-    try {
-      $stmt = $this->pdo->prepare('DELETE FROM auth_tokens WHERE DATE_ADD(when_created, INTERVAL :token_lifetime SECOND) <= NOW()');
-      $stmt->bindValue('token_lifetime', $this->token_lifetime, PDO::PARAM_INT);
-      $stmt->execute();
-    } catch (PDOException $e) {
-      $this->logger->error('Failed purging stale authentication tokens', ['error' => $e->getMessage()]);
-    }
-  }
-
   public function create(int $bzid, string $player_ipv4 = null, string $server_host = null, int $server_port = null): string|null
   {
     try {
@@ -136,6 +125,17 @@ class TokenHelper
         'actual_port' => $server_port
       ]);
       return false;
+    }
+  }
+
+  public function delete_stale(): void
+  {
+    try {
+      $stmt = $this->pdo->prepare('DELETE FROM auth_tokens WHERE DATE_ADD(when_created, INTERVAL :token_lifetime SECOND) <= NOW()');
+      $stmt->bindValue('token_lifetime', $this->token_lifetime, PDO::PARAM_INT);
+      $stmt->execute();
+    } catch (PDOException $e) {
+      $this->logger->error('Failed purging stale authentication tokens', ['error' => $e->getMessage()]);
     }
   }
 }

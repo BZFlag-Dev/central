@@ -36,6 +36,60 @@ class GameServerHelper
     $this->server_stale_time = $config->get('server_stale_time');
   }
 
+  public function create(string $protocol, string $host, int $port, string $game_info, string $description, int $hosting_key_id = null, string $owner = null, string $build = null): int|false
+  {
+    try {
+      $statement = $this->pdo->prepare("INSERT INTO servers (host, port, hosting_key_id, protocol, game_info, description, owner, build) VALUES (:host, :port, :hosting_key_id, :protocol, :game_info, :description, :owner, :build)");
+      $statement->bindValue('host', $host);
+      $statement->bindValue('port', $port, PDO::PARAM_INT);
+      $statement->bindValue('hosting_key_id', $hosting_key_id, PDO::PARAM_INT);
+      $statement->bindValue('protocol', $protocol);
+      $statement->bindValue('game_info', $game_info);
+      $statement->bindValue('description', $description);
+      $statement->bindValue('owner', $owner);
+      $statement->bindValue('build', $build);
+      if (!$statement->execute()) {
+        return false;
+      }
+      return (int)$this->pdo->lastInsertId();
+    } catch (PDOException $e) {
+      $this->logger->critical('Failed to create server.', ['host' => $host, 'port' => $port, 'error' => $e->getMessage()]);
+    }
+
+    return false;
+  }
+
+  public function create_advert_groups(int $server_id, array $group_ids): void
+  {
+    try {
+      $statement = $this->pdo->prepare('INSERT INTO server_advert_groups (server_id, group_id) VALUES (:server_id, :group_id)');
+      $statement->bindValue('server_id', $server_id, PDO::PARAM_INT);
+      foreach ($group_ids as $group_id) {
+        $statement->bindValue('group_id', $group_id, PDO::PARAM_INT);
+        $statement->execute();
+      }
+    } catch (PDOException $e) {
+      $this->logger->critical('Failed to create server advert groups.', ['server_id' => $server_id, 'group_ids' => $group_ids, 'error' => $e->getMessage()]);
+    }
+  }
+
+  public function update(int $id, string $game_info, string $description, string $owner = null): bool
+  {
+    try {
+      $statement = $this->pdo->prepare("UPDATE servers SET game_info = :game_info, description = :description, owner = :owner, when_updated = NOW() WHERE id = :id");
+      $statement->bindValue('id', $id, PDO::PARAM_INT);
+      $statement->bindValue('game_info', $game_info);
+      $statement->bindValue('description', $description);
+      $statement->bindValue('owner', $owner);
+      return $statement->execute();
+
+    } catch (PDOException $e) {
+      $this->logger->critical('Failed to update server.', ['error' => $e->getMessage()]);
+    }
+
+    return false;
+  }
+
   public function get_many(string $protocol = null, string $hostname = null, int $user_id = null): array|null
   {
     // Delete stale servers
@@ -87,10 +141,10 @@ class GameServerHelper
     return null;
   }
 
-  public function get_id_and_key_from_hostname_and_port(string $hostname, int $port): array|null
+  public function get_info_from_host_and_port(string $hostname, int $port): array|null
   {
     try {
-      $statement = $this->pdo->prepare('SELECT s.id, h.key_string FROM servers s LEFT JOIN hosting_keys h ON s.hosting_key_id = h.id WHERE s.host = :hostname AND s.port = :port');
+      $statement = $this->pdo->prepare('SELECT s.id, s.protocol, s.hosting_key_id, h.key_string FROM servers s LEFT JOIN hosting_keys h ON s.hosting_key_id = h.id WHERE s.host = :hostname AND s.port = :port');
       $statement->bindValue('hostname', $hostname);
       $statement->bindValue('port', $port, PDO::PARAM_INT);
       $statement->execute();
@@ -112,10 +166,12 @@ class GameServerHelper
   public function delete(int $id): bool
   {
     try {
+      // Delete the server entry
       $statement = $this->pdo->prepare('DELETE FROM servers WHERE id = :id');
       $statement->bindValue('id', $id, PDO::PARAM_INT);
       $statement->execute();
 
+      // Delete any advert groups for this server
       $statement = $this->pdo->prepare('DELETE FROM server_advert_groups WHERE server_id = :server_id');
       $statement->bindValue('server_id', $id, PDO::PARAM_INT);
       $statement->execute();
@@ -134,9 +190,26 @@ class GameServerHelper
   public function delete_stale(): void
   {
     try {
-      $statement = $this->pdo->prepare('DELETE FROM servers WHERE DATE_ADD(when_updated, INTERVAL :server_stale_time SECOND) <= NOW()');
+      // Fetch any stale servers
+      $statement = $this->pdo->prepare('SELECT id FROM servers WHERE DATE_ADD(when_updated, INTERVAL :server_stale_time SECOND) <= NOW()');
       $statement->bindValue(':server_stale_time', $this->server_stale_time);
       $statement->execute();
+      $stale_servers = $statement->fetchAll();
+
+      // Did we find any?
+      if (sizeof($stale_servers) > 0) {
+        // Prepare the statements!
+        $delete_server_statement = $this->pdo->prepare('DELETE FROM servers WHERE id = :id');
+        $delete_advert_group_statement = $this->pdo->prepare('DELETE FROM server_advert_groups WHERE server_id = :server_id');
+
+        // Loop through the servers and execute the deletions
+        foreach ($stale_servers as $server) {
+          $delete_server_statement->bindValue('id', $server['id'], PDO::PARAM_INT);
+          $delete_server_statement->execute();
+          $delete_advert_group_statement->bindValue('server_id', $server['id'], PDO::PARAM_INT);
+          $delete_advert_group_statement->execute();
+        }
+      }
     } catch (PDOException $e) {
       $this->logger->error('Failed to delete expired game servers: ', ['error' => $e->getMessage()]);
     }
