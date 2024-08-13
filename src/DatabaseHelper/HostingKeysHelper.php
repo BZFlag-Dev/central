@@ -22,17 +22,15 @@ declare(strict_types=1);
 
 namespace App\DatabaseHelper;
 
-use League\Config\Configuration;
 use Monolog\Logger;
 use PDO;
 use PDOException;
 use Random\RandomException;
 
-class HostingKeysHelper
+readonly class HostingKeysHelper
 {
-  public function __construct(private readonly PDO $pdo, private readonly Configuration $config, private readonly Logger $logger)
+  public function __construct(private PDO $pdo, private Logger $logger)
   {
-
   }
 
   public function create(string $host, int $user_id): ?string

@@ -67,7 +67,7 @@ readonly class LegacyListController
     };
   }
 
-  private function authenticate_player(array $data, int|null &$bzid = null, $skip_token = false): string
+  private function authenticate_player(array $data, $skip_token = false, int|null &$bzid = null): string
   {
     // If either the callsign or password are empty, just bail out here
     if (empty($data['callsign']) || empty($data['password'])) {
@@ -109,7 +109,7 @@ readonly class LegacyListController
       );
 
       if ($token !== null) {
-        if (func_num_args() > 1) {
+        if (func_num_args() >= 3) {
           $bzid = $authentication_attempt['bzid'];
         }
         return "TOKEN: $token\n";
@@ -264,7 +264,7 @@ readonly class LegacyListController
     // Handle authentication for the plain type only
     if ($data['listformat'] === 'plain') {
       // Authenticate the player
-      $auth = $this->authenticate_player($data, $user_id, isset($data['skiptoken']) && $data['skiptoken'] === '1');
+      $auth = $this->authenticate_player($data, isset($data['skiptoken']) && $data['skiptoken'] === '1', $user_id);
       $body->write($auth);
     }
 
