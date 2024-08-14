@@ -93,8 +93,14 @@ readonly class LegacyListController
       ]);
       return "NOTOK: {$authentication_attempt['error']}\n";
     }
-    // Otherwise, unless we're told to skip it, let's generate, store, and return a token
-    elseif (!$skip_token) {
+
+    // Pass the BZID back if requested
+    if (func_num_args() >= 3) {
+      $bzid = $authentication_attempt['bzid'];
+    }
+
+    // Unless we're told to skip it, let's generate, store, and return a token
+    if (!$skip_token) {
       /**
        * @var TokenHelper $token_helper
        */
@@ -109,9 +115,6 @@ readonly class LegacyListController
       );
 
       if ($token !== null) {
-        if (func_num_args() >= 3) {
-          $bzid = $authentication_attempt['bzid'];
-        }
         return "TOKEN: $token\n";
       } else {
         return "NOTOK: Failed to generate token...\n";
