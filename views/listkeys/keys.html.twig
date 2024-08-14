@@ -46,9 +46,9 @@
         {% endif %}
                 <tr>
                     <td>{{ key.host }}</td>
-                    <td>{{ key.key_string }}</td>
+                    <td class="user-select-all">{{ key.key_string }}</td>
                     <td>
-                        <button class="btn btn-danger" type="submit" name="id" value="{{ key.id }}">Delete</button>
+                        <button class="btn btn-danger btn-sm" type="submit" name="id" value="{{ key.id }}">Delete</button>
                     </td>
                 </tr>
         {% if loop.last %}
