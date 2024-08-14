@@ -269,6 +269,14 @@ readonly class LegacyListController
       // Authenticate the player
       $auth = $this->authenticate_player($data, isset($data['skiptoken']) && $data['skiptoken'] === '1', $user_id);
       $body->write($auth);
+
+      // If the login was successful, check if the user has any unread private messages
+      if ($user_id > 0) {
+        $pm_count = $this->phpbb->get_private_message_count_by_user_id($user_id);
+        if ($pm_count > 0) {
+          $body->write("NOTICE: You have $pm_count messages waiting for you, {$data['callsign']}. Log in at https://forums.bzflag.org/ to read them.\n");
+        }
+      }
     }
 
     /**

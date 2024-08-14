@@ -276,6 +276,23 @@ class PHPBBIntegration
     return null;
   }
 
+  public function get_private_message_count_by_user_id(int $user_id): int
+  {
+    try {
+      $statement = $this->pdo->prepare("SELECT user_new_privmsg FROM {$this->phpbb_database}.{$this->phpbb_prefix}users WHERE user_id = :user_id");
+      $statement->bindParam('user_id', $user_id, PDO::PARAM_INT);
+      $statement->execute();
+      $user = $statement->fetch();
+      if ($user) {
+        return $user['user_new_privmsg'];
+      }
+    } catch(PDOException $e) {
+      $this->logger->warning('Failed to get private message count.', ['user_id' => $user_id, 'error' => $e->getMessage()]);
+    }
+
+    return 0;
+  }
+
   public function get_groups_by_user_id(int $user_id): array|null
   {
     // Try to get the group membership information for this user
