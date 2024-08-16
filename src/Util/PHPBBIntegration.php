@@ -50,8 +50,22 @@ class PHPBBIntegration
     define('IN_PHPBB', true);
   }
 
-  // Wrapper around phpBB's utf8_clean_string function that brings in the needed includes on first use
-  private function utf8_clean_string($string): string
+  /**
+   * Add the database name and table prefix to a database table name
+   * @param string $table Base name of the table
+   * @return string The prefixed table name
+   */
+  private function phpbb_table(string $table): string
+  {
+    return "$this->phpbb_database.$this->phpbb_prefix$table";
+  }
+
+  /**
+   * Wrapper around phpBB's utf8_clean_string function that brings in the needed includes on first use
+   * @param string $string The UTF-8 string to clean/normalize
+   * @return string The cleaned/normalized string
+   */
+  private function utf8_clean_string(string $string): string
   {
     if (!function_exists('utf8_clean_string')) {
       global $phpbb_root_path, $phpEx;
@@ -63,8 +77,13 @@ class PHPBBIntegration
     return utf8_clean_string($string);
   }
 
-  // Initialize phpBB's password manager on demand
-  private function get_passwords_manager()
+  //
+
+  /**
+   * Return phpBB's password manager. This will initialize it on demand.
+   * @return \phpbb\passwords\manager phpBB's password manager
+   */
+  private function get_passwords_manager(): \phpbb\passwords\manager
   {
     static $passwords_manager;
 
@@ -137,6 +156,13 @@ class PHPBBIntegration
     return $passwords_manager;
   }
 
+  /**
+   * Attempt to authenticate a player against the phpBB user database. This also rate limits failed attempts to block
+   * attacks.
+   * @param string $username The player's username/callsign
+   * @param string $password The player's password
+   * @return array Information about the result of authenticating, failure or otherwise
+   */
   public function authenticate_player(string $username, string $password): array
   {
     // If too many attempts have been made and the user has been locked out, bail out here
@@ -156,7 +182,7 @@ class PHPBBIntegration
 
     // Try to get user information for this user
     try {
-      $statement = $this->pdo->prepare("SELECT user_id, user_password, username FROM {$this->phpbb_database}.{$this->phpbb_prefix}users WHERE username_clean = :username_clean AND user_inactive_reason = 0");
+      $statement = $this->pdo->prepare("SELECT user_id, user_password, username FROM {$this->phpbb_table('users')} WHERE username_clean = :username_clean AND user_inactive_reason = 0");
       $statement->bindParam('username_clean', $username_clean);
       $statement->execute();
       $user = $statement->fetch();
@@ -181,7 +207,7 @@ class PHPBBIntegration
           $new_hash = $passwords_manager->hash($password);
           if ($new_hash !== false && strlen($new_hash) > 0) {
             try {
-              $statement = $this->pdo->prepare("UPDATE {$this->phpbb_database}.{$this->phpbb_prefix}users SET user_password = :user_password WHERE user_id = :user_id");
+              $statement = $this->pdo->prepare("UPDATE {$this->phpbb_table('users')} SET user_password = :user_password WHERE user_id = :user_id");
               $statement->bindParam('user_password', $new_hash);
               $statement->bindParam('user_id', $user['user_id'], PDO::PARAM_INT);
               $statement->execute();
@@ -241,6 +267,11 @@ class PHPBBIntegration
     ];
   }
 
+  /**
+   * Get the phpBB user ID (also known as BZID) associated with a username/callsign
+   * @param string $username The username/callsign of the player
+   * @return int|null The user ID of the user, or null if we did not find a matching user
+   */
   public function get_user_id_by_username(string $username): int|null
   {
     // Clean up UTF-8 characters
@@ -248,7 +279,7 @@ class PHPBBIntegration
 
     // Try to get user information for this user
     try {
-      $statement = $this->pdo->prepare("SELECT user_id FROM {$this->phpbb_database}.{$this->phpbb_prefix}users WHERE username_clean = :username_clean AND user_inactive_reason = 0");
+      $statement = $this->pdo->prepare("SELECT user_id FROM {$this->phpbb_table('users')} WHERE username_clean = :username_clean AND user_inactive_reason = 0");
       $statement->bindParam('username_clean', $username_clean);
       $statement->execute();
       $user = $statement->fetch();
@@ -260,11 +291,16 @@ class PHPBBIntegration
     return null;
   }
 
+  /**
+   * Get the clean (UTF-8 normalized) username associated with a user ID (BZID)
+   * @param int $user_id The user ID (BZID) of the player
+   * @return string|null The username, or null if we did not find a matching user
+   */
   public function get_username_by_user_id(int $user_id): string|null
   {
     // Try to get user information for this user
     try {
-      $statement = $this->pdo->prepare("SELECT username_clean FROM {$this->phpbb_database}.{$this->phpbb_prefix}users WHERE user_id = :user_id AND user_inactive_reason = 0");
+      $statement = $this->pdo->prepare("SELECT username_clean FROM {$this->phpbb_table('users')} WHERE user_id = :user_id AND user_inactive_reason = 0");
       $statement->bindParam('user_id', $user_id, PDO::PARAM_INT);
       $statement->execute();
       $user = $statement->fetch();
@@ -276,10 +312,15 @@ class PHPBBIntegration
     return null;
   }
 
+  /**
+   * Returns the number of unread private messages for a user
+   * @param int $user_id The user ID (BZID) of the player
+   * @return int The number of unread messages. This also returns 0 if we did not find a matching user.
+   */
   public function get_private_message_count_by_user_id(int $user_id): int
   {
     try {
-      $statement = $this->pdo->prepare("SELECT user_new_privmsg FROM {$this->phpbb_database}.{$this->phpbb_prefix}users WHERE user_id = :user_id");
+      $statement = $this->pdo->prepare("SELECT user_new_privmsg FROM {$this->phpbb_table('users')} WHERE user_id = :user_id");
       $statement->bindParam('user_id', $user_id, PDO::PARAM_INT);
       $statement->execute();
       $user = $statement->fetch();
@@ -293,6 +334,11 @@ class PHPBBIntegration
     return 0;
   }
 
+  /**
+   * Return a list of groups that a user belongs to
+   * @param int $user_id The user ID (BZID) of the user
+   * @return array|null A list of group names, or null if we did not find a matching user
+   */
   public function get_groups_by_user_id(int $user_id): array|null
   {
     // Try to get the group membership information for this user
@@ -300,7 +346,7 @@ class PHPBBIntegration
       // NOTE: The phpbb "Exempt group leader from permissions" group setting sets group_skip_auth to 1, so we can use
       // that to prevent leaders from being a member of a group. Type 3 groups are the built-in groups, of which we only
       // allow the use of the REGISTERED group.
-      $statement = $this->pdo->prepare("SELECT g.group_name FROM {$this->phpbb_database}.{$this->phpbb_prefix}groups g INNER JOIN {$this->phpbb_database}.{$this->phpbb_prefix}user_group ug ON ug.group_id = g.group_id WHERE ug.user_id = :user_id AND ug.user_pending = 0 AND (group_type < 3 OR group_name = 'REGISTERED') AND NOT (g.group_skip_auth = 1 AND ug.group_leader = 1)");
+      $statement = $this->pdo->prepare("SELECT g.group_name FROM {$this->phpbb_table('groups')} g INNER JOIN {$this->phpbb_table('user_group')} ug ON ug.group_id = g.group_id WHERE ug.user_id = :user_id AND ug.user_pending = 0 AND (group_type < 3 OR group_name = 'REGISTERED') AND NOT (g.group_skip_auth = 1 AND ug.group_leader = 1)");
       $statement->bindValue('user_id', $user_id, PDO::PARAM_INT);
       $statement->execute();
       $groups = [];
@@ -335,11 +381,16 @@ class PHPBBIntegration
     return null;
   }
 
+  /**
+   * Returns the group ID of a group
+   * @param string $group_name The group name to look up
+   * @return int|null The group ID, or null if the group does not exist
+   */
   public function get_group_id_by_name(string $group_name): int|null
   {
     // Try to get the group membership information for this user
     try {
-      $statement = $this->pdo->prepare("SELECT group_id FROM {$this->phpbb_database}.{$this->phpbb_prefix}groups WHERE group_name = :group_name AND (group_type < 3 OR group_name = 'REGISTERED')");
+      $statement = $this->pdo->prepare("SELECT group_id FROM {$this->phpbb_table('groups')} WHERE group_name = :group_name AND (group_type < 3 OR group_name = 'REGISTERED')");
       $statement->bindValue('group_name', $group_name);
       $statement->execute();
       $row = $statement->fetch();
