@@ -31,7 +31,6 @@ use App\Util\Valid;
 use ErrorException;
 use Exception;
 use Monolog\Logger;
-use PDOException;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\App;
@@ -374,35 +373,45 @@ readonly class LegacyListController
       if (empty($data['key'])) {
         $errors[] = 'Missing server authentication key.';
       } else {
-        try {
-          /**
-           * @var HostingKeysHelper $hosting_key_helper
-           */
-          $hosting_key_helper = $this->app->getContainer()->get(HostingKeysHelper::class);
+        /**
+         * @var HostingKeysHelper $hosting_key_helper
+         */
+        $hosting_key_helper = $this->app->getContainer()->get(HostingKeysHelper::class);
 
-          $hosting_key = $hosting_key_helper->get_one_by_key($data['key']);
+        $hosting_key = $hosting_key_helper->get_one_by_key($data['key']);
 
-          if ($hosting_key === null) {
-            $errors[] = 'Invalid server authentication key.';
+        if ($hosting_key === null) {
+          $this->logger->debug('Hosting key not found.', [
+            'hostname' => $hostname,
+            'port' => $port,
+            'hosting_key' => $data['key']
+          ]);
+          $errors[] = 'Invalid server authentication key.';
+        } else {
+          // The host on the key must exactly match the public address
+          if (strcasecmp($hosting_key['host'], $hostname) !== 0) {
+            $this->logger->error('Server key host mismatch', [
+              'hostname' => $hostname,
+              'key_hostname' => $hosting_key['host'],
+              'port' => $port,
+              'hosting_key' => $data['key']
+            ]);
+            $errors[] = "Host mismatch for server authentication key.";
           } else {
-            // The host on the key must exactly match the public address
-            if (strcasecmp($hosting_key['host'], $hostname) !== 0) {
-              $errors[] = "Host mismatch for server authentication key.";
-            } else {
+            // Attempt to get the server owner name
+            $server_owner = $this->phpbb->get_username_by_user_id($hosting_key['user_id']);
 
-
-              // Attempt to get the server owner name
-              $server_owner = $this->phpbb->get_username_by_user_id($hosting_key['user_id']);
-
-              // If the owner lookup failed, error
-              if (!$server_owner) {
-                $errors[] = 'Owner lookup failure';
-              }
+            // If the owner lookup failed, error
+            if ($server_owner === null) {
+              $this->logger->error('Server key owner lookup failed', [
+                'hostname' => $hostname,
+                'port' => $port,
+                'hosting_key' => $data['key'],
+                'user_id' => $hosting_key['user_id']
+              ]);
+              $errors[] = 'Owner lookup failure';
             }
           }
-        } catch (PDOException $e) {
-          $errors[] = 'Owner lookup failure';
-          $this->logger->error('Server owner lookup failure', ['error' => $e->getMessage()]);
         }
       }
     }
@@ -421,7 +430,7 @@ readonly class LegacyListController
       }
     }
 
-    // If we have no errors up to this point, add the server
+    // If we have no errors up to this point, try to add/update the server
     if (empty($errors)) {
       /**
        * @var GameServerHelper $game_server_helper
@@ -432,7 +441,7 @@ readonly class LegacyListController
       $existing = $game_server_helper->get_info_from_host_and_port($hostname, $port);
 
       // If this server already exists, update it
-      if ($existing) {
+      if ($existing !== null) {
         if (!empty($hosting_key) && $existing['hosting_key_id'] !== $hosting_key['id']) {
           $errors[] = 'Hosting key mismatch when updating server.';
         } elseif ($existing['protocol'] !== $data['version']) {
@@ -448,7 +457,7 @@ readonly class LegacyListController
           }
 
           if (!$game_server_helper->update(...$args)) {
-            $errors[] = 'Failed to update server.';
+            $errors[] = 'Failed to update the server.';
           }
         }
       } // Otherwise, insert a new server entry
@@ -486,7 +495,7 @@ readonly class LegacyListController
               $group_ids = [];
               foreach ($advert_groups as $advert_group) {
                 $group_id = $this->phpbb->get_group_id_by_name($advert_group);
-                if ($group_id) {
+                if ($group_id !== null) {
                   $group_ids[] = $group_id;
                 }
               }
