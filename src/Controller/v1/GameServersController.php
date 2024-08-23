@@ -190,9 +190,30 @@ readonly class GameServersController
       $errors[] = 'Invalid server description.';
     }
 
-    // Basic check of advert groups, if provided
-    if (!empty($data['advert_groups']) && !is_array($data['advert_groups'])) {
-      $errors[] = 'Advert groups should be an array.';
+    // Server build
+    if (empty($data['build'])) {
+      $errors[] = 'Missing server build string.';
+    }
+
+    // Check advert groups, if provided
+    if (!empty($data['advert_groups'])) {
+      // Must be an array
+      if (!is_array($data['advert_groups'])) {
+        $errors[] = 'Advert groups must be an array.';
+      }
+      // Must contain at most 10 groups
+      elseif (sizeof($data['advert_groups']) > 10) {
+        $errors[] = 'Advert groups are limited to at most 10 groups.';
+      }
+      else {
+        // Each item must be a string
+        foreach ($data['advert_groups'] as $group) {
+          if (!is_string($group)) {
+            $errors[] = 'Advert groups must be a string.';
+            break;
+          }
+        }
+      }
     }
 
     // Verify the server key
