@@ -49,6 +49,7 @@ CREATE INDEX idx_auth_tokens_user_id ON auth_tokens (user_id);
 CREATE TABLE user_sessions (
     session_id CHAR(64) NOT NULL,
     user_id INT UNSIGNED NOT NULL,
+    username VARCHAR(255) NOT NULL,
     when_created TIMESTAMP NOT NULL DEFAULT NOW(),
     last_used TIMESTAMP NOT NULL DEFAULT NOW(),
     UNIQUE(session_id)
