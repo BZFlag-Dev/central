@@ -46,7 +46,7 @@ use OpenApi\Attributes as OA;
     schemas: [
       new OA\Schema(
         schema: 'server',
-        required: ['protocol', 'hostname', 'port', 'game_info', 'world_hash'],
+        required: ['hostname', 'port', 'protocol', 'game_info', 'world_hash', 'description', 'build'],
         properties: [
           new OA\Property(property: 'hostname', description: 'Public hostname of the server', type: 'string', readOnly: true, example: 'example.com'),
           new OA\Property(property: 'port', description: 'Public port of the server', type: 'integer', default: 5154, maximum: 65535, minimum: 1, readOnly: true),
