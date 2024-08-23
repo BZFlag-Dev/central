@@ -240,7 +240,19 @@ readonly class GameServersController
       return $response->withStatus(401);
     }
 
-    // TODO: Verify that the IP of this HTTP requests is contained in the DNS response of the hostname
+    // Verify that the IP of this HTTP request is contained in the DNS response of the hostname
+    $found = false;
+    $dns = dns_get_record($hostname, DNS_A | DNS_AAAA);
+    if ($dns !== false) {
+      foreach ($dns as $record) {
+        if (($record['type'] === 'A' && $record['ip'] === $_SERVER['REMOTE_ADDR']) || ($record['type'] === 'AAAA' && $record['ipv6'] === $_SERVER['REMOTE_ADDR'])) {
+          $found = true;
+        }
+      }
+    }
+    if (!$found) {
+      $errors[] = 'Specified hostname does not contain the the requesting address.';
+    }
 
     // Verify that we can connect to the server
     if (empty($errors)) {
