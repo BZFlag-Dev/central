@@ -25,6 +25,7 @@ namespace App\Controller\v1;
 use App\Controller\v1\Schema\ErrorSchema;
 use App\Controller\v1\Schema\ErrorType;
 use App\DatabaseHelper\GameServerHelper;
+use App\DatabaseHelper\HostingKeysHelper;
 use App\DatabaseHelper\SessionHelper;
 use App\Misc\BZFlagServer;
 use App\Util\PHPBBIntegration;
@@ -32,14 +33,12 @@ use App\Util\Valid;
 use Exception;
 use Monolog\Logger;
 use OpenApi\Attributes as OA;
-use PDO;
-use PDOException;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 readonly class GameServersController
 {
-  public function __construct(private PDO $pdo, private Logger $logger)
+  public function __construct(private Logger $logger)
   {
 
   }
@@ -132,7 +131,7 @@ readonly class GameServersController
       ]),
     ]
   )]
-  public function create_or_update(Request $request, Response $response, PHPBBIntegration $phpbb, string $hostname, int $port): Response
+  public function create_or_update(Request $request, Response $response, PHPBBIntegration $phpbb, HostingKeysHelper $hosting_keys_helper, GameServerHelper $game_server_helper, string $hostname, int $port): Response
   {
     // Verify the body content type is JSON
     if ($request->getHeaderLine('Content-Type') !== 'application/json') {
@@ -198,52 +197,41 @@ readonly class GameServersController
 
     // Verify the server key
     $server_key = $request->getHeader('Server-Key')[0];
-    try {
-      $statement = $this->pdo->prepare('SELECT id, host, user_id FROM hosting_keys WHERE key_string = :key_string');
-      $statement->bindValue('key_string', $server_key);
-      $statement->execute();
-      $hosting_key = $statement->fetch();
+    $hosting_key = $hosting_keys_helper->get_one_by_key($server_key);
 
-      // Verify that we found a matching key
-      if (!$hosting_key) {
-        $this->logger->debug('Server key not found.', [
+    // Verify that we found a matching key
+    if ($hosting_key === null) {
+      $this->logger->debug('Server key not found.', [
+        'hostname' => $hostname,
+        'port' => $port,
+        'server_key' => $server_key
+      ]);
+      $server_key_error = 'Invalid server authentication key.';
+    } else {
+      // The host on the key must exactly match the public address
+      if (strcasecmp($hosting_key['host'], $hostname) !== 0) {
+        $this->logger->error('Server key host mismatch', [
           'hostname' => $hostname,
+          'key_hostname' => $hosting_key['host'],
           'port' => $port,
           'server_key' => $server_key
         ]);
-        $server_key_error = 'Invalid server authentication key.';
+        $server_key_error = 'Host mismatch for server key.';
       } else {
-        // The host on the key must exactly match the public address
-        if (strcasecmp($hosting_key['host'], $hostname) !== 0) {
-          $this->logger->error('Server key host mismatch', [
-            'hostname' => $hostname,
-            'key_hostname' => $hosting_key['host'],
-            'port' => $port,
-            'server_key' => $server_key
-          ]);
-          $server_key_error = 'Host mismatch for server key.';
-        } else {
-          // Attempt to get the server owner name
-          $server_owner = $phpbb->get_username_by_user_id($hosting_key['user_id']);
+        // Attempt to get the server owner name
+        $server_owner = $phpbb->get_username_by_user_id($hosting_key['user_id']);
 
-          // If the owner lookup failed, error
-          if (!$server_owner) {
-            $this->logger->error('Server key owner lookup failed', [
-              'hostname' => $hostname,
-              'port' => $port,
-              'server_key' => $server_key,
-              'user_id' => $hosting_key['user_id']
-            ]);
-            $server_key_error = 'Invalid server key.';
-          }
+        // If the owner lookup failed, error
+        if ($server_owner === null) {
+          $this->logger->error('Server key owner lookup failed', [
+            'hostname' => $hostname,
+            'port' => $port,
+            'server_key' => $server_key,
+            'user_id' => $hosting_key['user_id']
+          ]);
+          $server_key_error = 'Invalid server key.';
         }
       }
-    } catch (PDOException $e) {
-      $this->logger->critical('Database error when fetching server key', [
-        'server_key' => $server_key,
-        'error' => $e->getMessage()
-      ]);
-      $server_key_error = 'Invalid server key.';
     }
 
     // If there was an error when lookup up the key or the key owner, bail out here
@@ -255,79 +243,80 @@ readonly class GameServersController
     // TODO: Verify that the IP of this HTTP requests is contained in the DNS response of the hostname
 
     // Verify that we can connect to the server
-    try {
-      new BZFlagServer($hostname, $port, $data['protocol']);
-    } catch (Exception $e) {
-      $this->logger->error($e->getMessage(), [
-        'hostname' => $hostname,
-        'port' => $port,
-        'protocol' => $data['protocol']
-      ]);
-      $errors[] = 'Failed to connect to or verify running server.';
+    if (empty($errors)) {
+      try {
+        new BZFlagServer($hostname, $port, $data['protocol']);
+      } catch (Exception $e) {
+        $this->logger->error($e->getMessage(), [
+          'hostname' => $hostname,
+          'port' => $port,
+          'protocol' => $data['protocol']
+        ]);
+        $errors[] = 'Failed to connect to or verify running server.';
+      }
     }
 
     // If we have no errors up to this point, try to add/update the server
     if (empty($errors)) {
-      try {
-        // Check if the server already exists
-        $sta = $this->pdo->prepare('SELECT id, protocol, hosting_key_id FROM servers WHERE host = :hostname AND port = :port LIMIT 1');
-        $sta->bindValue('hostname', $hostname);
-        $sta->bindValue('port', $port, PDO::PARAM_INT);
-        $sta->execute();
-        $existing = $sta->fetch();
+      // Check if the server already exists
+      $existing = $game_server_helper->get_info_from_host_and_port($hostname, $port);
 
-        // If this server already exists, update it
-        if ($existing) {
-          // If the hosting key doesn't match, return a 401
-          if ($existing['hosting_key_id'] !== $hosting_key['id']) {
-            $response->getBody()->write(ErrorSchema::getJSON(ErrorType::Unauthorized, ['Hosting key mismatch when updating server.']));
-            return $response->withStatus(401);
-          } elseif ($existing['protocol'] !== $data['protocol']) {
-            $errors[] = 'Protocol version mismatch when updating server.';
-          } else {
-            $sta = $this->pdo->prepare("UPDATE servers SET game_info = :game_info, world_hash = :world_hash, description = :description, owner = :owner, when_updated = NOW() WHERE id = :id");
-            $sta->bindValue('id', $existing['id'], PDO::PARAM_INT);
-            $sta->bindValue('game_info', $data['game_info']);
-            $sta->bindValue('world_hash', $data['world_hash']);
-            $sta->bindValue('description', $data['description']);
-            $sta->bindValue('owner', $server_owner);
-            $sta->execute();
-          }
-        } // Otherwise, insert a new server entry
-        else {
-          $sta = $this->pdo->prepare("INSERT INTO servers (host, port, hosting_key_id, protocol, game_info, world_hash, description, owner, build) VALUES (:hostname, :port, :hosting_key_id, :protocol, :game_info, :world_hash, :description, :owner, :build)");
-          $sta->bindValue('hostname', $hostname);
-          $sta->bindValue('port', $port, PDO::PARAM_INT);
-          $sta->bindValue('hosting_key_id', $hosting_key['id'], PDO::PARAM_INT);
-          $sta->bindValue('protocol', $data['protocol']);
-          $sta->bindValue('game_info', $data['game_info']);
-          $sta->bindValue('world_hash', $data['world_hash']);
-          $sta->bindValue('description', $data['description']);
-          $sta->bindValue('owner', $server_owner);
-          $sta->bindValue('build', $data['build'] ?? null);
-
-          // If the server was created, and the advert groups is non-empty and does not contain the EVERYONE group,
-          // then store the advert groups.
-          if ($sta->execute() && !empty($data['advert_groups']) && !in_array('EVERYONE', $data['advert_groups'], true)) {
-            $server_id = $this->pdo->lastInsertId();
-            $sta = $this->pdo->prepare('INSERT INTO server_advert_groups (server_id, group_id) VALUES (:server_id, :group_id)');
-            $sta->bindValue('server_id', $server_id, PDO::PARAM_INT);
-            foreach($data['advert_groups'] as $advert_group) {
-              $group_id = $phpbb->get_group_id_by_name($advert_group);
-              if ($group_id) {
-                $sta->bindValue('group_id', $group_id);
-                $sta->execute();
-              }
-            }
+      // If this server already exists, update it
+      if ($existing !== null) {
+        // If the hosting key doesn't match, return a 401
+        if ($existing['hosting_key_id'] !== $hosting_key['id']) {
+          $response->getBody()->write(ErrorSchema::getJSON(ErrorType::Unauthorized, ['Hosting key mismatch when updating server.']));
+          return $response->withStatus(401);
+        } elseif ($existing['protocol'] !== $data['protocol']) {
+          $errors[] = 'Protocol version mismatch when updating server.';
+        } else {
+          $args = [
+            'id' => $existing['id'],
+            'game_info' => $data['game_info'],
+            'description' => $data['description'],
+            'owner' => $server_owner,
+            'world_hash' => $data['world_hash']
+          ];
+          if (!$game_server_helper->update(...$args)) {
+            $errors[] = 'Failed to update the server.';
           }
         }
-      } catch(PDOException $e) {
-        $this->logger->error('Database error when adding or updating server.', [
-          'hostname' => $hostname,
+      } // Otherwise, insert a new server entry
+      else {
+        $args = [
+          'protocol' => $data['protocol'],
+          'host' => $hostname,
           'port' => $port,
-          'error' => $e->getMessage()
-        ]);
-        $errors[] = 'Failed to add or update the server.';
+          'game_info' => $data['game_info'],
+          'description' => $data['description'],
+          'hosting_key_id' => $hosting_key['id'],
+          'owner' => $server_owner,
+          'build' => $data['build'],
+          'world_hash' => $data['world_hash']
+        ];
+        $server_id = $game_server_helper->create(...$args);
+
+        if ($server_id === false) {
+          $errors[] = 'Failed to create the server.';
+        }
+
+        // If the server was created, and the advert groups is non-empty and does not contain the EVERYONE group,
+        // then store the advert groups.
+        elseif (!empty($data['advert_groups']) && !in_array('EVERYONE', $data['advert_groups'], true)) {
+          $group_ids = [];
+
+          foreach($data['advert_groups'] as $advert_group) {
+            $group_id = $phpbb->get_group_id_by_name($advert_group);
+            if ($group_id !== null) {
+              $group_ids[] = $group_id;
+            }
+          }
+
+          // If we have some valid groups, create the advert groups
+          if (sizeof($group_ids) > 0) {
+            $game_server_helper->create_advert_groups($server_id, $group_ids);
+          }
+        }
       }
     }
 
@@ -399,7 +388,7 @@ readonly class GameServersController
     // If there were no errors in the provided data, try to look up and then delete the server
     if (empty($errors)) {
       // Fetch information about this server
-      $server = $game_server_helper->get_id_and_key_from_hostname_and_port($hostname, $port);
+      $server = $game_server_helper->get_info_from_host_and_port($hostname, $port);
       $server_key = $request->getHeader('Server-Key')[0];
 
       // If we found the server and the key matches, delete it

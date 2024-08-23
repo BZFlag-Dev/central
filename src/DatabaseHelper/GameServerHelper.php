@@ -36,10 +36,10 @@ class GameServerHelper
     $this->server_stale_time = $config->get('server_stale_time');
   }
 
-  public function create(string $protocol, string $host, int $port, string $game_info, string $description, int $hosting_key_id = null, string $owner = null, string $build = null): int|false
+  public function create(string $protocol, string $host, int $port, string $game_info, string $description, int $hosting_key_id = null, string $owner = null, string $build = null, string $world_hash = null): int|false
   {
     try {
-      $statement = $this->pdo->prepare("INSERT INTO servers (host, port, hosting_key_id, protocol, game_info, description, owner, build) VALUES (:host, :port, :hosting_key_id, :protocol, :game_info, :description, :owner, :build)");
+      $statement = $this->pdo->prepare("INSERT INTO servers (host, port, hosting_key_id, protocol, game_info, description, owner, build, world_hash) VALUES (:host, :port, :hosting_key_id, :protocol, :game_info, :description, :owner, :build, :world_hash)");
       $statement->bindValue('host', $host);
       $statement->bindValue('port', $port, PDO::PARAM_INT);
       $statement->bindValue('hosting_key_id', $hosting_key_id, PDO::PARAM_INT);
@@ -48,6 +48,7 @@ class GameServerHelper
       $statement->bindValue('description', $description);
       $statement->bindValue('owner', $owner);
       $statement->bindValue('build', $build);
+      $statement->bindValue('world_hash', $world_hash);
       if (!$statement->execute()) {
         return false;
       }
@@ -73,14 +74,15 @@ class GameServerHelper
     }
   }
 
-  public function update(int $id, string $game_info, string $description, string $owner = null): bool
+  public function update(int $id, string $game_info, string $description, string $owner = null, string $world_hash = null): bool
   {
     try {
-      $statement = $this->pdo->prepare("UPDATE servers SET game_info = :game_info, description = :description, owner = :owner, when_updated = NOW() WHERE id = :id");
+      $statement = $this->pdo->prepare("UPDATE servers SET game_info = :game_info, description = :description, owner = :owner, world_hash = :world_hash, when_updated = NOW() WHERE id = :id");
       $statement->bindValue('id', $id, PDO::PARAM_INT);
       $statement->bindValue('game_info', $game_info);
       $statement->bindValue('description', $description);
       $statement->bindValue('owner', $owner);
+      $statement->bindValue('world_hash', $world_hash);
       return $statement->execute();
 
     } catch (PDOException $e) {
