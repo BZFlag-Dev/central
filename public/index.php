@@ -47,6 +47,8 @@ $container->set(Configuration::class, function (): Configuration {
   $config = new Configuration([
     // Hostname that, when used, triggers the legacy bzfls2 compatible interface
     'legacy_host' => Expect::string()->required(),
+    // Toggle to enable REST API
+    'enable_rest_api' => Expect::bool(true),
     // If a server has not been updated recently, it will be purged. Value in seconds.
     'server_stale_time' => Expect::int(1830),
     // Player authentication tokens are valid for a limited number of seconds
@@ -191,7 +193,7 @@ if ($_SERVER['SERVER_NAME'] === $config->get('legacy_host')) {
     ->setName('listkeys')->add(Guard::class);
 }
 // Third generation server list which is a modern REST API
-else {
+elseif ($config->get('enable_rest_api')) {
   $app->get('/', function (Request $request, Response $response): Response {
     return $response
       ->withHeader('Location', "https://{$request->getUri()->getHost()}/docs/")
