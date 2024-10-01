@@ -33,13 +33,16 @@ final class ValidTest extends TestCase
     $this->assertTrue(Valid::serverHostname('something.example.com'));
     $this->assertTrue(Valid::serverHostname('123.example.com'));
     $this->assertTrue(Valid::serverHostname('abc.123.example.com'));
+    $this->assertTrue(Valid::serverHostname('example.co.uk'));
     $this->assertTrue(Valid::serverHostname('xn--kxae4bafwg.xn--pxaix.gr'));
   }
 
   public function testIsNotValidHostname(): void
   {
     $this->assertFalse(Valid::serverHostname(''));
+    $this->assertFalse(Valid::serverHostname('example'));
     $this->assertFalse(Valid::serverHostname('192.168.1.1'));
+    $this->assertFalse(Valid::serverHostname('2001:db8::1'));
     $this->assertFalse(Valid::serverHostname('example.com.'));
     $this->assertFalse(Valid::serverHostname('example'));
     $this->assertFalse(Valid::serverHostname('ουτοπία.δπθ.gr'));
