@@ -69,12 +69,12 @@ readonly class LegacyListController
   private function authenticate_player(array $data, $skip_token = false, int|null &$bzid = null): string
   {
     // If either the callsign or password are empty, just bail out here
-    if (empty($data['callsign']) || empty($data['password'])) {
+    if (!isset($data['callsign'], $data['password']) || strlen($data['callsign']) === 0 || strlen($data['password']) === 0) {
       return '';
     }
 
     // Split nameport into host and port parts
-    if (!empty($data['nameport'])) {
+    if (isset($data['nameport']) && strlen($data['nameport']) > 0) {
       try {
         [$server_host, $server_port] = $this->split_nameport($data['nameport']);
       } catch (Exception) {
@@ -85,7 +85,7 @@ readonly class LegacyListController
     $authentication_attempt = $this->phpbb->authenticate_player($data['callsign'], $data['password']);
 
     // If the authentication failed, throw a NOTOK back
-    if (!empty($authentication_attempt['error'])) {
+    if (isset($authentication_attempt['error'])) {
       $this->logger->warning('Authentication failed', [
         'callsign' => $data['callsign'],
         'error' => $authentication_attempt['error']
@@ -125,7 +125,7 @@ readonly class LegacyListController
 
   private function process_tokens(array $data): string
   {
-    if (!isset($data['checktokens'])) {
+    if (!isset($data['checktokens']) || strlen($data['checktokens']) === 0) {
       return '';
     }
 
@@ -141,7 +141,7 @@ readonly class LegacyListController
     $return = '';
 
     // Split nameport into host and port parts
-    if (!empty($data['nameport'])) {
+    if (isset($data['nameport']) && strlen($data['nameport']) > 0) {
       try {
         [$server_host, $server_port] = $this->split_nameport($data['nameport']);
       } catch (Exception) {
@@ -150,22 +150,33 @@ readonly class LegacyListController
 
     // Function to split string on CRLF or LF separators and remove empty values
     $split_without_empty = function ($string) {
-      return array_filter(explode("\n", str_replace("\r\n", "\n", $string)), function ($v) { return !empty($v); });
+      return array_filter(explode("\n", str_replace("\r\n", "\n", $string)), function ($v) { return strlen($v) > 0; });
     };
 
     // Take the horrible group list and split it out into an array of groups, removing any empty values
     $groups = $split_without_empty($data['groups'] ?? '');
 
     // Loop through each token to process
-    foreach($split_without_empty($data['checktokens']) as $checktoken) {
+    foreach ($split_without_empty($data['checktokens']) as $checktoken) {
+      // If there isn't an equals sign, skip it because it can't have token
+      if (!str_contains($checktoken, '=')) {
+        continue;
+      }
       list($remaining, $token) = explode('=', $checktoken);
-      list($callsign, $player_ipv4) = explode('@', $remaining);
+
+      // If there's an @, extract the IPv4 address
+      if (str_contains($remaining, '@')) {
+        list($callsign, $player_ipv4) = explode('@', $remaining);
+      } else {
+        $callsign = $remaining;
+        $player_ipv4 = null;
+      }
 
       // If we have both a callsign and a token, process it
-      if (!empty($callsign) && !empty($token)) {
+      if (strlen($callsign) > 0 && strlen($token) > 0) {
         // TODO: Does anything even care about this message? Is it just for troubleshooting?
         $return .= "MSG: checktoken callsign=$callsign, ip={$_SERVER['REMOTE_ADDR']}, token=$token";
-        foreach($groups as $group) {
+        foreach ($groups as $group) {
           $return .= " group=$group";
         }
         $return .= "\n";
@@ -192,11 +203,11 @@ readonly class LegacyListController
         }
 
         // Check group membership, if the server cares
-        if (sizeof($groups) > 0) {
+        if (count($groups) > 0) {
           $player_groups = $this->phpbb->get_groups_by_user_id($user_id);
-          if (!empty($player_groups)) {
+          if ($player_groups !== null && count($player_groups) > 0) {
             $common_groups = array_intersect($groups, $player_groups);
-            if (sizeof($common_groups) > 0) {
+            if (count($common_groups) > 0) {
               $return .= ':' . implode(':', $common_groups);
             }
           }
@@ -220,7 +231,7 @@ readonly class LegacyListController
     if ($parts === false) {
       throw new Exception('Unable to parse nameport.');
     }
-    foreach(array_keys($parts) as $key) {
+    foreach (array_keys($parts) as $key) {
       if (!in_array($key, ['scheme', 'host', 'port'], true)) {
         throw new Exception('Invalid nameport value.');
       }
@@ -245,7 +256,7 @@ readonly class LegacyListController
     }
 
     $dns = dns_get_record($host, DNS_A | DNS_AAAA);
-    foreach($dns as $record) {
+    foreach ($dns as $record) {
       if (($record['type'] === 'A' && $record['ip'] === $ip) || ($record['type'] === 'AAAA' && $record['ipv6'] === $ip)) {
         return true;
       }
@@ -302,7 +313,7 @@ readonly class LegacyListController
       $body->write("\"fields\": [\"version\",\"hexcode\",\"addr\",\"ipaddr\",\"title\",\"owner\"],\n");
       $body->write("\"servers\": [");
       $first = true;
-      foreach($servers as $server) {
+      foreach ($servers as $server) {
         if ($first) {
           $first = false;
         } else {
@@ -312,7 +323,7 @@ readonly class LegacyListController
       }
       $body->write("\n]\n}\n");
     } else {
-      foreach($servers as $server) {
+      foreach ($servers as $server) {
         $body->write("{$server['hostname']}:{$server['port']} {$server['protocol']} {$server['game_info']} 127.0.0.1 {$server['description']}\n");
       }
     }
@@ -334,7 +345,7 @@ readonly class LegacyListController
     $errors = [];
 
     // Name/port
-    if (empty($data['nameport'])) {
+    if (!isset($data['nameport']) || strlen($data['nameport']) === 0) {
       $errors[] = 'Missing public address.';
     } else {
       try {
@@ -345,22 +356,22 @@ readonly class LegacyListController
     }
 
     // Verify that the IP of this HTTP requests is contained in the DNS response of the hostname
-    if (!empty($hostname) && !$this->dns_has_ip($hostname, $_SERVER['REMOTE_ADDR'])) {
+    if (isset($hostname) && !$this->dns_has_ip($hostname, $_SERVER['REMOTE_ADDR'])) {
       $errors[] = 'Specified hostname does not contain the the requesting address.';
     }
 
     // Protocol version
-    if (empty($data['version']) || !Valid::serverProtocol($data['version'])) {
+    if (!isset($data['version']) || !Valid::serverProtocol($data['version'])) {
       $errors[] = 'Missing or invalid protocol version.';
     }
 
     // Game information
-    if (empty($data['gameinfo']) || !Valid::serverGameInfo($data['gameinfo'])) {
+    if (!isset($data['gameinfo']) || !Valid::serverGameInfo($data['gameinfo'])) {
       $errors[] = 'Missing or invalid game info.';
     }
 
     // Server description (optional, so only check if not empty)
-    if (empty($data['title'])) {
+    if (!isset($data['title'])) {
       $data['title'] = '';
     } elseif (!Valid::serverDescription($data['title'])) {
       $errors[] = 'Invalid server description.';
@@ -368,9 +379,9 @@ readonly class LegacyListController
 
     // Check if the provided server token allows manipulating this hostname (not required for protocol versions
     // 'BZFS1910' [1.10] or 'BZFS0026' [2.0])
-    if (empty($errors) && !in_array($data['version'], ['BZFS1910', 'BZFS0026'], true)) {
+    if (count($errors) === 0 && !in_array($data['version'], ['BZFS1910', 'BZFS0026'], true)) {
       // If a key is required, but none were provided...
-      if (empty($data['key'])) {
+      if (!isset($data['key']) || strlen($data['key']) === 0) {
         $errors[] = 'Missing server authentication key.';
       } else {
         /**
@@ -417,7 +428,7 @@ readonly class LegacyListController
     }
 
     // Verify that we can connect to the server
-    if (empty($errors)) {
+    if (count($errors) === 0) {
       try {
         new BZFlagServer($hostname, $port, $data['version']);
       } catch (Exception $e) {
@@ -431,7 +442,7 @@ readonly class LegacyListController
     }
 
     // If we have no errors up to this point, try to add/update the server
-    if (empty($errors)) {
+    if (count($errors) === 0) {
       /**
        * @var GameServerHelper $game_server_helper
        */
@@ -442,7 +453,7 @@ readonly class LegacyListController
 
       // If this server already exists, update it
       if ($existing !== null) {
-        if (!empty($hosting_key) && $existing['hosting_key_id'] !== $hosting_key['id']) {
+        if (isset($hosting_key['id']) && $existing['hosting_key_id'] !== $hosting_key['id']) {
           $errors[] = 'Hosting key mismatch when updating server.';
         } elseif ($existing['protocol'] !== $data['version']) {
           $errors[] = 'Protocol version mismatch when updating server.';
@@ -452,7 +463,7 @@ readonly class LegacyListController
             'game_info' => $data['gameinfo'],
             'description' => $data['title']
           ];
-          if ($server_owner) {
+          if (isset($server_owner) && strlen($server_owner) > 0) {
             $args['owner'] = $server_owner;
           }
 
@@ -469,10 +480,10 @@ readonly class LegacyListController
           'game_info' => $data['gameinfo'],
           'description' => $data['title']
         ];
-        if ($hosting_key['id']) {
+        if (isset($hosting_key['id'])) {
           $args['hosting_key_id'] = $hosting_key['id'];
         }
-        if ($server_owner) {
+        if (isset($server_owner) && strlen($server_owner) > 0) {
           $args['owner'] = $server_owner;
         }
         if ($data['build']) {
@@ -485,12 +496,12 @@ readonly class LegacyListController
           $errors[] = 'Failed to create server.';
         } else {
           // If the server was added, and we have advert groups, associate them with the server
-          if (!empty($data['advertgroups'])) {
+          if (isset($data['advertgroups']) && strlen($data['advertgroups']) > 0) {
             // Split the comma separated list of groups
             $advert_groups = explode(',', $data['advertgroups']);
 
             // Ensure the list isn't empty and that it doesn't contain the EVERYONE group
-            if (!empty($advert_groups) && !in_array('EVERYONE', $advert_groups, true)) {
+            if (count($advert_groups) > 0 && !in_array('EVERYONE', $advert_groups, true)) {
               // Look up the group IDs and populate a list
               $group_ids = [];
               foreach ($advert_groups as $advert_group) {
@@ -501,7 +512,7 @@ readonly class LegacyListController
               }
 
               // If we have some valid groups, create the advert groups
-              if (sizeof($group_ids) > 0) {
+              if (count($group_ids) > 0) {
                 $game_server_helper->create_advert_groups($server_id, $group_ids);
               }
             }
@@ -511,7 +522,7 @@ readonly class LegacyListController
     }
 
     // If we had any errors, report them
-    if (!empty($errors)) {
+    if (count($errors) > 0) {
       $response->getBody()->write('ERROR: '.implode(' ', $errors) . "\n");
     }
     // Otherwise, tell the server it was added and process any tokens
@@ -519,7 +530,7 @@ readonly class LegacyListController
       $body = $response->getBody();
 
       // Write out the server owner, if there is one
-      if (!empty($server_owner)) {
+      if (isset($server_owner) && strlen($server_owner) > 0) {
         $body->write("OWNER: $server_owner\n");
       }
 
@@ -539,7 +550,7 @@ readonly class LegacyListController
     $errors = [];
 
     // Name/port
-    if (empty($data['nameport'])) {
+    if (!isset($data['nameport']) || strlen($data['nameport']) === 0) {
       $errors[] = 'Missing public address.';
     } else {
       try {
@@ -549,7 +560,7 @@ readonly class LegacyListController
       }
     }
 
-    if (empty($errors)) {
+    if (count($errors) === 0) {
       /**
        * @var GameServerHelper $game_server_helper
        */
@@ -561,7 +572,7 @@ readonly class LegacyListController
       // If the server exists, let's decide if we allow the removal
       if ($server) {
         // If a key is provided, and it's the same as the one used for listing the server, we can skip the IP check
-        if ((!empty($data['key']) && $data['key'] === $server['key_string']) || $this->dns_has_ip($hostname, $_SERVER['REMOTE_ADDR'])) {
+        if ((isset($data['key']) && strlen($data['key']) > 0 && $data['key'] === $server['key_string']) || $this->dns_has_ip($hostname, $_SERVER['REMOTE_ADDR'])) {
           // Delete the server
           if ($game_server_helper->delete($server['id'])) {
             $response->getBody()->write("REMOVE: {$data['nameport']}\n");
@@ -578,7 +589,7 @@ readonly class LegacyListController
     }
 
     // If there were errors, write those out
-    if (!empty($errors)) {
+    if (count($errors) > 0) {
       $response->getBody()->write('ERROR: ' . implode(' ', $errors) . "\n");
     }
     return $response
@@ -634,7 +645,7 @@ readonly class LegacyListController
     try {
       // Parse and validate the redirect URL
       $parts = parse_url($data['url'] ?? '');
-      if (empty($parts['host']) || empty($parts['scheme'])) {
+      if (!isset($parts['host']) || !isset($parts['scheme'])) {
         throw new ErrorException('A return URL was not provided.');
       }
       if (!isset($parts['port'])) {
@@ -651,12 +662,12 @@ readonly class LegacyListController
         }
 
         // Error if we don't have a username and password
-        if (empty($data['username']) || empty($data['password'])) {
+        if (!isset($data['username']) || strlen($data['username']) === 0 || !isset($data['password']) || strlen($data['password']) === 0) {
           throw new Exception('Your username and password must be provided.');
         } else {
           // Attempt to authenticate the player using the provided callsign and password
           $authentication_attempt = $this->phpbb->authenticate_player($data['username'], $data['password']);
-          if (!empty($authentication_attempt['error'])) {
+          if (isset($authentication_attempt['error'])) {
             $this->logger->error('Player authentication failure', ['error' => $authentication_attempt['error']]);
             throw new Exception($authentication_attempt['error']);
           }
@@ -722,7 +733,7 @@ readonly class LegacyListController
         $authentication_attempt = $this->phpbb->authenticate_player($data['username'], $data['password']);
 
         // If it failed, set a flash message
-        if (!empty($authentication_attempt['error'])) {
+        if (isset($authentication_attempt['error'])) {
           $_SESSION['listkeys_flash'] = "Authentication failed: {$authentication_attempt['error']}";
         }
         // Otherwise, store the session info
@@ -734,7 +745,7 @@ readonly class LegacyListController
       }
 
       // If a BZID isn't stored in the session or the session has expired, clear any session values
-      elseif (empty($_SESSION['listkeys_bzid']) || empty($_SESSION['listkeys_session_created']) || $_SESSION['listkeys_session_created'] + (60 * $session_lifespan_minutes) < time()) {
+      elseif (!isset($_SESSION['listkeys_bzid']) || !isset($_SESSION['listkeys_session_created']) || $_SESSION['listkeys_session_created'] + (60 * $session_lifespan_minutes) < time()) {
         unset($_SESSION['listkeys_bzid'], $_SESSION['listkeys_username'], $_SESSION['listkeys_session_created']);
         $_SESSION['listkeys_flash'] = 'Session expired';
       }
@@ -742,7 +753,7 @@ readonly class LegacyListController
       // User is attempting to create a new key
       elseif ($action === 'create') {
         // Make sure the hostname field isn't empty
-        if (empty($data['hostname'])) {
+        if (!isset($data['hostname']) || strlen($data['hostname']) === 0) {
           $_SESSION['listkeys_flash'] = 'A hostname must be provided when creating a key';
         } else {
           $hosting_key = $hosting_key_helper->create($data['hostname'], $_SESSION['listkeys_bzid']);
@@ -783,17 +794,17 @@ readonly class LegacyListController
           ->withStatus(302);
       }
 
-      // If the session is expired or has otherwise expired, clear session info and show the login page
-      elseif (empty($_SESSION['listkeys_bzid']) || empty($_SESSION['listkeys_session_created']) || $_SESSION['listkeys_session_created'] + (60 * $session_lifespan_minutes) < time()) {
+      // If the session is expired/invalid, clear session info and show the login page
+      elseif (!isset($_SESSION['listkeys_bzid']) || !isset($_SESSION['listkeys_session_created']) || $_SESSION['listkeys_session_created'] + (60 * $session_lifespan_minutes) < time()) {
         $template_variables = [];
 
-        // Handle the flash message, if one exists
+        // Handle an existing flash message
         if (isset($_SESSION['listkeys_flash'])) {
           $template_variables['flash'] = $_SESSION['listkeys_flash'];
           unset($_SESSION['listkeys_flash']);
         }
         // Otherwise, if the session expired, inform the user of such
-        elseif (!empty($_SESSION['listkeys_bzid'])) {
+        elseif (isset($_SESSION['listkeys_bzid'])) {
           $template_variables['flash'] = 'Session expired';
         }
 

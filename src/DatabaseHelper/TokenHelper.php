@@ -98,7 +98,7 @@ class TokenHelper
     $this->delete_token_statement->bindValue('token', $token_string);
     $this->delete_token_statement->execute();
 
-    if (!empty($token['server_host']) && !empty($server_host) && $token['server_host'] === $server_host && $token['server_port'] === $server_port) {
+    if ($token['server_host'] !== null && $token['server_host'] !== '' && $server_host !== null && $token['server_host'] === $server_host && $token['server_port'] === $server_port) {
       $this->logger->info('Successfully consumed token using host/port match', [
         'callsign' => $callsign,
         'host' => $server_host,
@@ -107,7 +107,7 @@ class TokenHelper
       return true;
     }
     // Otherwise, use the old IPv4 comparison check if the token has one
-    elseif (!empty($player_ipv4) && $token['player_ipv4'] === $player_ipv4) {
+    elseif ($player_ipv4 !== null && $player_ipv4 !== '' && $token['player_ipv4'] === $player_ipv4) {
       $this->logger->info('Successfully consumed token using player IPv4 match', [
         'callsign' => $callsign
       ]);

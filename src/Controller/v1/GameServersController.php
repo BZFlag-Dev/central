@@ -168,44 +168,45 @@ readonly class GameServersController
     }
 
     // Protocol version
-    if (empty($data['protocol']) || !Valid::serverProtocol($data['protocol'])) {
+    if (!isset($data['protocol']) || !Valid::serverProtocol($data['protocol'])) {
       $errors[] = 'Missing or invalid protocol version.';
     }
 
     // Game information
-    if (empty($data['game_info']) || !Valid::serverGameInfo($data['game_info'])) {
+    if (!isset($data['game_info']) || !Valid::serverGameInfo($data['game_info'])) {
       $errors[] = 'Missing or invalid game info.';
     }
 
     // World hash
     // TODO: More validation than just length
-    if (empty($data['world_hash']) || strlen($data['world_hash']) > 135) {
+    if (!isset($data['world_hash']) || strlen($data['world_hash']) > 135) {
       $errors[] = 'Missing or invalid world hash.';
     }
 
-    // Server description (optional, so only check if not empty)
-    if (empty($data['description'])) {
+    // Server description (optional, so only check if provided)
+    if (!isset($data['description'])) {
       $data['description'] = '';
     } elseif (!Valid::serverDescription($data['description'])) {
       $errors[] = 'Invalid server description.';
     }
 
     // Server build
-    if (empty($data['build'])) {
+    if (!isset($data['build']) || strlen($data['build']) === 0) {
       $errors[] = 'Missing server build string.';
+    } elseif (strlen($data['build']) > 255) {
+      $data['build'] = substr($data['build'], 0, 255);
     }
 
     // Check advert groups, if provided
-    if (!empty($data['advert_groups'])) {
+    if (isset($data['advert_groups'])) {
       // Must be an array
       if (!is_array($data['advert_groups'])) {
         $errors[] = 'Advert groups must be an array.';
       }
       // Must contain at most 10 groups
-      elseif (sizeof($data['advert_groups']) > 10) {
+      elseif (count($data['advert_groups']) > 10) {
         $errors[] = 'Advert groups are limited to at most 10 groups.';
-      }
-      else {
+      } else {
         // Each item must be a string
         foreach ($data['advert_groups'] as $group) {
           if (!is_string($group)) {
@@ -276,7 +277,7 @@ readonly class GameServersController
     }
 
     // Verify that we can connect to the server
-    if (empty($errors)) {
+    if (count($errors) === 0) {
       try {
         new BZFlagServer($hostname, $port, $data['protocol']);
       } catch (Exception $e) {
@@ -290,7 +291,7 @@ readonly class GameServersController
     }
 
     // If we have no errors up to this point, try to add/update the server
-    if (empty($errors)) {
+    if (count($errors) === 0) {
       // Check if the server already exists
       $existing = $game_server_helper->get_info_from_host_and_port($hostname, $port);
 
@@ -335,10 +336,10 @@ readonly class GameServersController
 
         // If the server was created, and the advert groups is non-empty and does not contain the EVERYONE group,
         // then store the advert groups.
-        elseif (!empty($data['advert_groups']) && !in_array('EVERYONE', $data['advert_groups'], true)) {
+        elseif (isset($data['advert_groups']) && count($data['advert_groups']) > 0 && !in_array('EVERYONE', $data['advert_groups'], true)) {
           $group_ids = [];
 
-          foreach($data['advert_groups'] as $advert_group) {
+          foreach ($data['advert_groups'] as $advert_group) {
             $group_id = $phpbb->get_group_id_by_name($advert_group);
             if ($group_id !== null) {
               $group_ids[] = $group_id;
@@ -346,7 +347,7 @@ readonly class GameServersController
           }
 
           // If we have some valid groups, create the advert groups
-          if (sizeof($group_ids) > 0) {
+          if (count($group_ids) > 0) {
             $game_server_helper->create_advert_groups($server_id, $group_ids);
           }
         }
@@ -354,7 +355,7 @@ readonly class GameServersController
     }
 
     // If we had any errors, report them
-    if (!empty($errors)) {
+    if (count($errors) > 0) {
       $response->getBody()->write(ErrorSchema::getJSON(ErrorType::BadRequest, $errors));
       return $response
         ->withStatus(400)
@@ -419,7 +420,7 @@ readonly class GameServersController
     }
 
     // If there were no errors in the provided data, try to look up and then delete the server
-    if (empty($errors)) {
+    if (count($errors) === 0) {
       // Fetch information about this server
       $server = $game_server_helper->get_info_from_host_and_port($hostname, $port);
       $server_key = $request->getHeader('Server-Key')[0];

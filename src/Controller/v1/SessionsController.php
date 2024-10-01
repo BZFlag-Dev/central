@@ -98,7 +98,7 @@ readonly class SessionsController
     $data = $request->getParsedBody();
 
     // Username and password are required
-    if (empty($data['username']) || empty($data['password'])) {
+    if (!isset($data['username']) || strlen($data['username']) === 0 || !isset($data['password']) || strlen($data['password']) === 0) {
       $response->getBody()->write(ErrorSchema::getJSON(ErrorType::Unauthorized, ['Username and password are required']));
       return $response
         ->withStatus(401)
@@ -109,7 +109,7 @@ readonly class SessionsController
     $authentication_attempt = $phpbb->authenticate_player($data['username'], $data['password']);
 
     // If there was an authentication error, just bail out here
-    if (!empty($authentication_attempt['error'])) {
+    if (isset($authentication_attempt['error'])) {
       $response->getBody()->write(ErrorSchema::getJSON(ErrorType::Unauthorized, [$authentication_attempt['error']]));
       // TODO: Figure out a way to detect rate limiting failures and throw a 429 instead of a 401
       return $response
@@ -185,7 +185,6 @@ readonly class SessionsController
         ->withStatus(404);
     }
   }
-
 
   #[OA\Delete(
     path: '/sessions/{session_id}',

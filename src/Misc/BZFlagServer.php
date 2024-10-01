@@ -49,7 +49,7 @@ class BZFlagServer
     }
 
     // Set the socket non-blocking
-    socket_set_blocking($this->socket, false);
+    stream_set_blocking($this->socket, false);
 
     // Create a blank buffer
     $buffer = '';

@@ -98,7 +98,7 @@ class GameServerHelper
     $this->delete_stale();
 
     // If we have a valid session, we can look up servers advertised to groups the user belongs to
-    if (!empty($user_id)) {
+    if ($user_id !== null) {
       $phpbb_database = $this->config->get('phpbb.database');
       $phpbb_prefix = $this->config->get('phpbb.prefix');
       $sql = "SELECT s.host as hostname, s.port, s.protocol, s.game_info, s.world_hash, s.description, s.owner FROM servers s LEFT JOIN server_advert_groups ag INNER JOIN {$phpbb_database}.{$phpbb_prefix}user_group ug ON ag.group_id = ug.group_id ON s.id = ag.server_id WHERE (ug.user_id = :user_id OR ag.server_id IS NULL)";
@@ -110,10 +110,10 @@ class GameServerHelper
     $sql .= ' AND DATE_ADD(when_updated, INTERVAL :server_stale_time SECOND) > NOW()';
 
     // Support filtering on the protocol and hostname
-    if (!empty($protocol)) {
+    if ($protocol !== null && $protocol !== '') {
       $sql .= ' AND protocol = :protocol';
     }
-    if (!empty($hostname)) {
+    if ($hostname !== null && $hostname !== '') {
       $sql .= ' AND host = :hostname';
     }
 
@@ -124,13 +124,13 @@ class GameServerHelper
     try {
       $statement = $this->pdo->prepare($sql);
       $statement->bindValue(':server_stale_time', $this->server_stale_time, PDO::PARAM_INT);
-      if (!empty($user_id)) {
+      if ($user_id !== null) {
         $statement->bindValue('user_id', $user_id);
       }
-      if (!empty($protocol)) {
+      if ($protocol !== null && $protocol !== '') {
         $statement->bindValue('protocol', $protocol);
       }
-      if (!empty($hostname !== null)) {
+      if ($hostname !== null && $hostname !== '') {
         $statement->bindValue('hostname', $hostname);
       }
       if ($statement->execute()) {
@@ -199,7 +199,7 @@ class GameServerHelper
       $stale_servers = $statement->fetchAll();
 
       // Did we find any?
-      if (sizeof($stale_servers) > 0) {
+      if (count($stale_servers) > 0) {
         // Prepare the statements!
         $delete_server_statement = $this->pdo->prepare('DELETE FROM servers WHERE id = :id');
         $delete_advert_group_statement = $this->pdo->prepare('DELETE FROM server_advert_groups WHERE server_id = :server_id');

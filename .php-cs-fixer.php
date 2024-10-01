@@ -39,7 +39,8 @@ return $config->setRules([
   'header_comment' => [ 'header' => $header ],
   'single_blank_line_at_eof' => true,
   'no_whitespace_in_blank_line' => true,
-  'no_trailing_whitespace' => true
+  'no_trailing_whitespace' => true,
+  'no_alias_functions' => [ 'sets' => ['@internal']]
 ])
   ->setIndent("  ")
   ->setFinder($finder)

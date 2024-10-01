@@ -84,7 +84,7 @@ readonly class HostingKeysHelper
       $statement->bindValue(':user_id', $user_id, PDO::PARAM_INT);
       $statement->execute();
       $keys = $statement->fetchAll();
-      if (sizeof($keys) > 0) {
+      if (count($keys) > 0) {
         return $keys;
       }
     } catch (PDOException $e) {

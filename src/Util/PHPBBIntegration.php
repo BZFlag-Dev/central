@@ -77,8 +77,6 @@ class PHPBBIntegration
     return utf8_clean_string($string);
   }
 
-  //
-
   /**
    * Return phpBB's password manager. This will initialize it on demand.
    * @return \phpbb\passwords\manager phpBB's password manager
@@ -186,7 +184,7 @@ class PHPBBIntegration
       $statement->bindParam('username_clean', $username_clean);
       $statement->execute();
       $user = $statement->fetch();
-    } catch(PDOException $e) {
+    } catch (PDOException $e) {
       $this->logger->error('Database error when trying to fetch user information for authentication.', ['error' => $e->getMessage(), 'username' => $username]);
     }
 
@@ -284,7 +282,7 @@ class PHPBBIntegration
       $statement->execute();
       $user = $statement->fetch();
       return $user['user_id'];
-    } catch(PDOException $e) {
+    } catch (PDOException $e) {
       $this->logger->error('Database error when trying to fetch user information for ID lookup.', ['error' => $e->getMessage(), 'username' => $username]);
     }
 
@@ -305,7 +303,7 @@ class PHPBBIntegration
       $statement->execute();
       $user = $statement->fetch();
       return $user['username_clean'];
-    } catch(PDOException $e) {
+    } catch (PDOException $e) {
       $this->logger->error('Database error when trying to fetch user information for username lookup.', ['error' => $e->getMessage(), 'user_id' => $user_id]);
     }
 
@@ -327,7 +325,7 @@ class PHPBBIntegration
       if ($user) {
         return $user['user_new_privmsg'];
       }
-    } catch(PDOException $e) {
+    } catch (PDOException $e) {
       $this->logger->warning('Failed to get private message count.', ['user_id' => $user_id, 'error' => $e->getMessage()]);
     }
 
@@ -353,7 +351,7 @@ class PHPBBIntegration
       while ($row = $statement->fetch()) {
         $groups[] = $row['group_name'];
       }
-      if (sizeof($groups) > 0) {
+      if (count($groups) > 0) {
         return $groups;
       }
     } catch (PDOException $e) {
