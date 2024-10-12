@@ -28,6 +28,10 @@
         "post-update-cmd": [
             "cp vendor/twbs/bootstrap/dist/css/bootstrap.min.css public/css/",
             "cp vendor/twbs/bootstrap/dist/css/bootstrap.min.css.map public/css/"
+        ],
+        "post-install-cmd": [
+            "cp vendor/twbs/bootstrap/dist/css/bootstrap.min.css public/css/",
+            "cp vendor/twbs/bootstrap/dist/css/bootstrap.min.css.map public/css/"
         ]
     },
     "require-dev": {
