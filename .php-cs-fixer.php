@@ -6,6 +6,7 @@ $finder = PhpCsFixer\Finder::create()
   ->exclude('views')
   ->exclude('vendor')
   ->notName('config.php')
+  ->notName('phinx-config.php')
   ->in(__DIR__)
 ;
 

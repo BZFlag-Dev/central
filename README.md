@@ -28,6 +28,7 @@ Installation
 Install dependencies:
 ```bash
 composer install --no-dev --optimize-autoloader
+composer install --no-dev -d tools
 ```
 
 Ensure that PHP can write to var/log/:
@@ -58,17 +59,35 @@ See public/index.php for additional configuration options.
 Database Setup
 --------------
 
-This assumes the phpBB database is 'forum' with a prefix of 'phpbb_', the central services database is 'central', and
-the central services user is 'central'. Adjust the below to match your environment.
+This assumes the phpBB database is 'forum' with a prefix of 'phpbb_', the central services database is 'central', the
+central services user is 'central', and another migration account is called 'central_migration'. Adjust the below to
+match your environment.
 
 ```mysql
 GRANT SELECT, INSERT, UPDATE, DELETE ON central.* TO central@localhost;
 GRANT SELECT ON forum.phpbb_groups TO central@localhost;
 GRANT SELECT ON forum.phpbb_user_group TO central@localhost;
 GRANT SELECT, UPDATE ON forum.phpbb_users TO central@localhost;
+
+GRANT SELECT, INSERT, UPDATE, DELETE, ALTER, CREATE, DROP ON central.* TO central_migration@localhost;
 ```
 
-Import structure.sql into the 'central' database.
+Create a `config-phinx.php`:
+```php
+<?php
+return [
+  'database' => [
+    'database' => 'central',
+    'username' => 'central_migration',
+    'password' => 'PutPasswordHere'
+  ]
+];
+```
+
+Run the migration:
+```bash
+php tools/vendor/bin/phinx migrate
+```
 
 Generating REST Documentation
 -----------------------------

@@ -1,6 +1,7 @@
 /.idea/
 /vendor/
 config.php
+phinx-config.php
 .php-cs-fixer.cache
 /public/css/bootstrap.min.css
 /public/css/bootstrap.min.css.map

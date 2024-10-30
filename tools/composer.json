@@ -1,6 +1,7 @@
 {
     "require": {
         "friendsofphp/php-cs-fixer": "^3.21",
-        "zircote/swagger-php": "^4.8"
+        "zircote/swagger-php": "^4.8",
+        "robmorgan/phinx": "^0.16.5"
     }
 }
