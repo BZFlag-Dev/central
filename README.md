@@ -72,7 +72,7 @@ GRANT SELECT, UPDATE ON forum.phpbb_users TO central@localhost;
 GRANT SELECT, INSERT, UPDATE, DELETE, ALTER, CREATE, DROP ON central.* TO central_migration@localhost;
 ```
 
-Create a `config-phinx.php`:
+Create a `phinx-config.php`:
 ```php
 <?php
 return [
