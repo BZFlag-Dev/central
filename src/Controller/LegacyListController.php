@@ -627,6 +627,14 @@ readonly class LegacyListController
     // Grab the request data for this request
     $data = ($request->getMethod() === 'POST') ? $request->getParsedBody() : $request->getQueryParams();
 
+    // Verify that we have a URL to return to
+    if (!isset($data['url']) || strlen($data['url']) === 0) {
+      $response->getBody()->write("ERROR: Missing return URL.");
+      return $response
+        ->withHeader('Content-Type', 'text/plain')
+        ->withStatus(400);
+    }
+
     // Fetch the color them from the cookie
     $color_theme = (!isset($_COOKIE['color_theme']) || $_COOKIE['color_theme'] !== 'light') ? 'dark' : 'light';
 
