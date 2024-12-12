@@ -143,7 +143,7 @@ class GameServerHelper
   public function get_info_from_host_and_port(string $hostname, int $port): array|null
   {
     try {
-      $statement = $this->pdo->prepare('SELECT s.id, s.protocol, s.hosting_key_id, h.key_string FROM servers s LEFT JOIN hosting_keys h ON s.hosting_key_id = h.id WHERE s.host = :hostname AND s.port = :port AND DATE_ADD(when_updated, INTERVAL :server_stale_time SECOND) > NOW()');
+      $statement = $this->pdo->prepare('SELECT s.id, s.protocol, s.hosting_key_id, h.key_string FROM servers s LEFT JOIN hosting_keys h ON s.hosting_key_id = h.id WHERE s.host = :hostname AND s.port = :port');
       $statement->bindValue('hostname', $hostname);
       $statement->bindValue('port', $port, PDO::PARAM_INT);
       $statement->execute();
