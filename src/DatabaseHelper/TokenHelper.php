@@ -70,7 +70,7 @@ class TokenHelper
     // Prepare SQL statements, if they weren't already
     try {
       if (!$this->select_token_statement) {
-        $this->select_token_statement = $this->pdo->prepare('SELECT player_ipv4, server_host, server_port FROM auth_tokens WHERE user_id = :user_id AND token = :token AND TIMESTAMPDIFF(SECOND, when_created, NOW()) < :token_lifetime');
+        $this->select_token_statement = $this->pdo->prepare('SELECT player_ipv4, server_host, server_port FROM auth_tokens WHERE user_id = :user_id AND token = :token AND DATE_ADD(when_created, INTERVAL :token_lifetime SECOND) > NOW()');
         $this->select_token_statement->bindValue('token_lifetime', $this->token_lifetime, PDO::PARAM_INT);
       }
       if (!$this->delete_token_statement) {

@@ -79,9 +79,6 @@ class SessionHelper
   // Get information about a session
   public function get_one(string $session_id): array|null
   {
-    // Delete expired sessions
-    $this->delete_expired();
-
     try {
       // Look up session, verifying that the session isn't expired or stale
       $statement = $this->pdo->prepare('SELECT user_id, username, DATE_ADD(when_created, INTERVAL :lifespan_hours HOUR) as session_expiration FROM user_sessions WHERE session_id = :session_id AND DATE_ADD(when_created, INTERVAL :lifespan_hours HOUR) > NOW() AND DATE_ADD(last_used, INTERVAL :idle_hours HOUR) > NOW()');

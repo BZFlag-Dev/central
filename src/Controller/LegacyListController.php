@@ -134,9 +134,6 @@ readonly class LegacyListController
      */
     $token_helper = $this->app->getContainer()->get(TokenHelper::class);
 
-    // Delete stale tokens
-    $token_helper->delete_stale();
-
     // Information to return
     $return = '';
 

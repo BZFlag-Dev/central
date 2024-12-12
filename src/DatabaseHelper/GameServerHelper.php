@@ -94,9 +94,6 @@ class GameServerHelper
 
   public function get_many(string $protocol = null, string $hostname = null, int $user_id = null): array|null
   {
-    // Delete stale servers
-    $this->delete_stale();
-
     // If we have a valid session, we can look up servers advertised to groups the user belongs to
     if ($user_id !== null) {
       $phpbb_database = $this->config->get('phpbb.database');
@@ -146,7 +143,7 @@ class GameServerHelper
   public function get_info_from_host_and_port(string $hostname, int $port): array|null
   {
     try {
-      $statement = $this->pdo->prepare('SELECT s.id, s.protocol, s.hosting_key_id, h.key_string FROM servers s LEFT JOIN hosting_keys h ON s.hosting_key_id = h.id WHERE s.host = :hostname AND s.port = :port');
+      $statement = $this->pdo->prepare('SELECT s.id, s.protocol, s.hosting_key_id, h.key_string FROM servers s LEFT JOIN hosting_keys h ON s.hosting_key_id = h.id WHERE s.host = :hostname AND s.port = :port AND DATE_ADD(when_updated, INTERVAL :server_stale_time SECOND) > NOW()');
       $statement->bindValue('hostname', $hostname);
       $statement->bindValue('port', $port, PDO::PARAM_INT);
       $statement->execute();
