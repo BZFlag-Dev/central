@@ -28,9 +28,12 @@ use DI\Bridge\Slim\Bridge;
 use League\Config\Configuration;
 use Monolog\Handler\StreamHandler;
 use Monolog\Logger;
-use Psr\Http\Message\ResponseInterface as Response;
+use Nyholm\Psr7\Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Csrf\Guard;
+use Slim\Exception\HttpInternalServerErrorException;
+use Slim\Exception\HttpMethodNotAllowedException;
+use Slim\Exception\HttpNotFoundException;
 use Slim\Routing\RouteCollectorProxy;
 use Slim\Views\Twig;
 use Slim\Views\TwigMiddleware;
@@ -62,7 +65,27 @@ if ($log_config['log_other_errors']) {
   $error_logger->pushProcessor(new \Monolog\Processor\IntrospectionProcessor());
 }
 
-$app->addErrorMiddleware($config->get('debug'), true, true, $error_logger ?? null);
+$error_middleware = $app->addErrorMiddleware($config->get('debug'), true, true, $error_logger ?? null);
+
+$error_middleware->setErrorHandler(HttpNotFoundException::class, function (Request $request, Throwable $exception, bool $displayErrorDetails) use ($app) {
+  $response = new Response();
+  $twig = $app->getContainer()->get(Twig::class);
+  return $twig->render($response, 'http_error.html.twig', [
+    'code' => 404,
+    'short_description' => 'Page Not Found',
+    'message' => 'The requested URL was not found.'
+  ])->withStatus(404);
+});
+
+$error_middleware->setErrorHandler(HttpMethodNotAllowedException::class, function (Request $request, Throwable $exception, bool $displayErrorDetails) use ($app) {
+  $response = new Response();
+  $twig = $app->getContainer()->get(Twig::class);
+  return $twig->render($response, 'http_error.html.twig', [
+    'code' => 405,
+    'short_description' => 'Method Not Allowed',
+    'message' => 'The requested method was not allowed for this URL.'
+  ])->withStatus(405);
+});
 
 // Second generation server list compatability
 if ($_SERVER['SERVER_NAME'] === $config->get('legacy_host')) {

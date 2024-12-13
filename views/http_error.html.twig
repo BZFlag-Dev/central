@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en-us">
+<head>
+    <meta charset="utf-8"/>
+    <title>Error {{ code }}</title>
+    <style>
+        html {
+            font-size: 18pt;
+            font-family: monospace;
+            background-color: #1f301f;
+            color: #0ebd11;
+            margin: 0;
+            padding: 30px;
+        }
+
+        h1 {
+            font-size: 1em;
+            padding: 0;
+            margin: 0;
+        }
+
+        h1, .line {
+            margin-bottom: 1em;
+        }
+
+        .blink {
+            animation: blinker 1s step-start infinite;
+        }
+
+        @keyframes blinker {
+            50% {
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Error {{code }} {{ short_description }}</h1>
+    <div class="line">{{ message }}</div>
+    <div class="line">error@bzflag:~$ <span class="blink" aria-hidden="true">█</span></div>
+</body>
+</html>
