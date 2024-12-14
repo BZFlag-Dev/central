@@ -1,5 +1,5 @@
-BZFlag Central Services v3
-==========================
+BZFlag Central
+==============
 
 The BZFlag project hosts centralized services for listing public servers and authenticating registered players. This
 project is the third generation of the central services and aims to provide a legacy interface compatible with the v2
@@ -99,7 +99,7 @@ generate the specification, run the following commands:
 
 ```bash
 composer -d tools install
-./tools/vendor/bin/openapi src/Controller/v1 -o ../bzfls3-docs/public/v1.yaml -b vendor/autoload.php
+./tools/vendor/bin/openapi src/Controller/v1 -o ../central-docs/public/v1.yaml -b vendor/autoload.php
 ```
 
 Webserver Configuration
@@ -116,8 +116,8 @@ to the <Directory> block for /docs.
 <VirtualHost *:80>
         ServerName my.bzflag.whatever
 
-        DocumentRoot /var/www/bzfls3/public
-        <Directory /var/www/bzfls3/public>
+        DocumentRoot /var/www/central/public
+        <Directory /var/www/central/public>
                 Options -Indexes
                 Require all granted
 
@@ -131,8 +131,8 @@ to the <Directory> block for /docs.
 <VirtualHost *:80>
         ServerName central.bzflag.whatever
 
-        DocumentRoot /var/www/bzfls3/public
-        <Directory /var/www/bzfls3/public>
+        DocumentRoot /var/www/central/public
+        <Directory /var/www/central/public>
                 Options -Indexes
                 Require all granted
 
@@ -142,8 +142,8 @@ to the <Directory> block for /docs.
                 RewriteRule ^ index.php [QSA,L]
         </Directory>
 
-        Alias /docs /var/www/bzfls3-docs/public/
-        <Directory /var/www/bzfls3-docs/public/>
+        Alias /docs /var/www/central-docs/public/
+        <Directory /var/www/central-docs/public/>
                 Options -Indexes
                 Require all granted
 

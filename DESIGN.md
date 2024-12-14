@@ -1,4 +1,4 @@
-# BZFlag Central Services Design (bzfcs)
+# BZFlag Central Design
 
 This will document, in detail, the current functionality of the current implementation (BZFlag List server a.k.a.
 bzfls), describe challenges with the current design, and define the requirements and functionality for a future version

@@ -119,7 +119,7 @@ return [
 
   Logger::class => function (Configuration $config): Logger {
     $c = $config->get('logging');
-    $logger = new Logger('bzfls');
+    $logger = new Logger('central');
     $stream = new StreamHandler("{$c['log_directory']}/app.log", $c['app_level']);
     $stream->setFormatter(new \Monolog\Formatter\LineFormatter("[%datetime%] %level_name%: %message% %context% %extra%\n"));
     $logger->pushHandler($stream);
