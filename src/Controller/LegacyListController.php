@@ -757,14 +757,16 @@ readonly class LegacyListController
 
       // User is attempting to create a new key
       elseif ($action === 'create') {
-        // Make sure the hostname field isn't empty
-        if (!isset($data['hostname']) || strlen($data['hostname']) === 0) {
+        // Make sure the hostname field isn't empty and ensure an IP wasn't provided
+        if (!isset($data['hostname']) || strlen($data['hostname']) === 0 || filter_var($data['hostname'], FILTER_VALIDATE_IP) !== false) {
           $_SESSION['listkeys_flash'] = 'A hostname must be provided when creating a key';
         } else {
           $hosting_key = $hosting_key_helper->create($data['hostname'], $_SESSION['listkeys_bzid']);
 
           if ($hosting_key !== null) {
             $_SESSION['listkeys_flash'] = 'Successfully created key';
+          } else {
+            $_SESSION['listkeys_flash'] = 'Failed to create key';
           }
         }
       }
