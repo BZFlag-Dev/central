@@ -30,17 +30,9 @@ class Valid
   }
 
   // Must be a number between 1 and 65535 inclusive
-  public static function serverPort(string|int $port): bool
+  public static function serverPort(int $port): bool
   {
-    if (is_string($port)) {
-      if (!ctype_digit($port)) {
-        return false;
-      }
-      $nport = (int)$port;
-      return $nport >= 1 && $nport <= 65535;
-    } else {
-      return $port >= 1 && $port <= 65535;
-    }
+    return $port >= 1 && $port <= 65535;
   }
 
   // Protocol is an 8 character string with 4 uppercase alpha and 4 numeric characters
