@@ -147,7 +147,9 @@ readonly class LegacyListController
 
     // Function to split string on CRLF or LF separators and remove empty values
     $split_without_empty = function ($string) {
-      return array_filter(explode("\n", str_replace("\r\n", "\n", $string)), function ($v) { return strlen($v) > 0; });
+      return array_filter(explode("\n", str_replace("\r\n", "\n", $string)), function ($v) {
+        return strlen($v) > 0;
+      });
     };
 
     // Take the horrible group list and split it out into an array of groups, removing any empty values
