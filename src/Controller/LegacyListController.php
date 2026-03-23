@@ -221,28 +221,25 @@ readonly class LegacyListController
    */
   private function split_nameport($nameport): array
   {
-    // Split the nameport into parts
-    $parts = parse_url("bzfs://$nameport");
+    // Match hostname with optional port
+    if (preg_match('/^([^\s:]+)(?::([0-9]{1,5}))?$/', $nameport, $matches)) {
+      $host = $matches[1];
+      $port = isset($matches[2]) ? (int)$matches[2] : 5154;
 
-    // If the host/port is seriously malformed, throw an exception
-    if ($parts === false) {
-      throw new Exception('Unable to parse nameport.');
-    }
-    foreach (array_keys($parts) as $key) {
-      if (!in_array($key, ['scheme', 'host', 'port'], true)) {
-        throw new Exception('Invalid nameport value.');
+      // Validate host
+      if (!Valid::serverHostname($host)) {
+        throw new Exception('Invalid hostname in public address.');
       }
+
+      // Validate port if provided
+      if (isset($matches[2]) && !Valid::serverPort($matches[2])) {
+        throw new Exception('Invalid port in public address.');
+      }
+
+      return [$host, $port];
     }
 
-    if (!isset($parts['host']) || !Valid::serverHostname($parts['host'])) {
-      throw new Exception('Invalid hostname in public address.');
-    }
-
-    if (isset($parts['port']) && !Valid::serverPort($parts['port'])) {
-      throw new Exception('Invalid port in public address.');
-    }
-
-    return [$parts['host'], $parts['port'] ?? 5154];
+    throw new Exception('Unable to parse nameport.');
   }
 
   private function dns_has_ip($host, $ip): bool
