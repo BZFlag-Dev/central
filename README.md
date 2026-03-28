@@ -10,7 +10,7 @@ Requirements
 ------------
 
 * Apache
-* PHP 8.2 FPM with the following extensions:
+* PHP 8.4 FPM with the following extensions:
   * PDO
   * MySQL
   * Redis
@@ -31,9 +31,9 @@ composer install --no-dev --optimize-autoloader
 composer install --no-dev -d tools
 ```
 
-Ensure that PHP can write to var/log/:
+Ensure that PHP can write to var/:
 ```bash
-sudo chown www-data:www-data var/log/
+sudo chown www-data:www-data var/
 ```
 
 Create a config.php file at the top level of the source with at least the following, adjusting values as needed:
@@ -54,7 +54,7 @@ return [
 ];
 ```
 
-See public/index.php for additional configuration options.
+See src/Bootstrap/container.php for additional configuration options.
 
 Database Setup
 --------------
