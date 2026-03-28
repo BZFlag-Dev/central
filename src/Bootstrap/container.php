@@ -76,7 +76,7 @@ return function () {
         // Activity/error logging
         'logging' => Expect::structure([
           // Absolute path to the log directory
-          'log_directory' => Expect::string(dirname(__DIR__).'/var/log'),
+          'log_directory' => Expect::string(dirname(__DIR__, 2).'/var/log'),
           // Application error level, which controls the level of detail written to app.log
           // Debug = 100, Info = 200, Notice = 250, Warning = 300, Error = 400, Critical = 500, Alert = 550, Emergency = 600
           'app_level' => Expect::int(200)->min(100)->max(600),
