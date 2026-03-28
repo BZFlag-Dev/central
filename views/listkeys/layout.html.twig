@@ -11,7 +11,7 @@
 <div class="container mt-3">
     <h1>BZFlag Server Key Management</h1>
     <div>Server keys are used for hosting public BZFlag server instances</div>
-    {% if bzid %}<div><a href="?action=logout">Logout</a></div>{% endif %}
+    {% if bzid %}<div>Logged in as {{ username | escape }} - <a href="?action=logout">Logout</a></div>{% endif %}
     <div class="mt-4">
 {% block content %}
 {% endblock %}
