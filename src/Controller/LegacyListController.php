@@ -672,7 +672,6 @@ readonly class LegacyListController
           // Attempt to authenticate the player using the provided callsign and password
           $authentication_attempt = $this->phpbb->authenticate_player($data['username'], $data['password']);
           if (isset($authentication_attempt['error'])) {
-            $this->logger->error('Player authentication failure', ['error' => $authentication_attempt['error']]);
             throw new Exception($authentication_attempt['error']);
           }
 

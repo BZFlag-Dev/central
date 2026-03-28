@@ -167,6 +167,7 @@ class PHPBBIntegration
     $key_lockout = "CENTRAL:AUTH_LOCKOUT:{$_SERVER['REMOTE_ADDR']}";
     try {
       if ($this->redis->exists($key_lockout)) {
+        $this->logger->notice("Authentication request rejected due to lockout.", ['username' => $username, 'address' => $_SERVER['REMOTE_ADDR']]);
         return [
           'error' => 'Too many failed login attempts. Temporarily locked out.',
         ];
@@ -237,6 +238,7 @@ class PHPBBIntegration
       }
       // User exists, invalid password
       else {
+        $this->logger->notice('Invalid password for user.', ['username' => $username, 'address' => $_SERVER['REMOTE_ADDR']]);
         try {
           // Set a redis value with the maximum failed attempts, if it doesn't exist
           if ($this->redis->setnx($key_login_attempts, $this->login_config['max_failed_attempts'])) {
@@ -249,6 +251,7 @@ class PHPBBIntegration
           if ($this->redis->get($key_login_attempts) <= 0) {
             if ($this->redis->setnx($key_lockout, 1)) {
               $this->redis->expire($key_lockout, $this->login_config['lockout_duration']);
+              $this->logger->notice('User login attempts rate limited.', ['username' => $username, 'address' => $_SERVER['REMOTE_ADDR']]);
               return [
                 'error' => 'Too many failed login attempts. Temporarily locked out.',
               ];
@@ -258,6 +261,8 @@ class PHPBBIntegration
           $this->logger->error('Failed to write to redis.', ['error' => $e->getMessage(), 'key' => $key_login_attempts]);
         }
       }
+    } else {
+      $this->logger->info("Authentication request for unknown user account.", ['username' => $username, 'address' => $_SERVER['REMOTE_ADDR']]);
     }
 
     return [
