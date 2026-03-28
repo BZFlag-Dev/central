@@ -65,6 +65,23 @@ class PHPBBIntegration
    * @param string $string The UTF-8 string to clean/normalize
    * @return string The cleaned/normalized string
    */
+  private function utf8_normalize_nfc(string $string): string
+  {
+    if (!function_exists('utf8_normalize_nfc')) {
+      global $phpbb_root_path, $phpEx;
+
+      // Pull in functions for handling UTF-8 normalization
+      require($phpbb_root_path.'includes/utf/utf_tools.'.$phpEx);
+    }
+
+    return utf8_normalize_nfc($string);
+  }
+
+  /**
+   * Wrapper around phpBB's utf8_clean_string function that brings in the needed includes on first use
+   * @param string $string The UTF-8 string to clean/normalize
+   * @return string The cleaned/normalized string
+   */
   private function utf8_clean_string(string $string): string
   {
     if (!function_exists('utf8_clean_string')) {
@@ -174,6 +191,32 @@ class PHPBBIntegration
       }
     } catch (\RedisException $e) {
       $this->logger->error('Failed to read from redis.', ['error' => $e->getMessage(), 'key' => $key_lockout]);
+    }
+
+    // NOTE: This is copying some logic from the set_var function in phpbb/request/type_cast_helper.php
+
+    // Replace some strings
+    $username = strtr($username, ["\r\n" => "\n", "\r" => "\n", "\0" => '', "\u{FEFF}" => '']);
+    $password = strtr($password, ["\r\n" => "\n", "\r" => "\n", "\0" => '', "\u{FEFF}" => '']);
+
+    // Trim the values
+    $username = trim($username);
+    $password = trim($password);
+
+    // Encode some special characters
+    $username = htmlspecialchars($username, ENT_COMPAT, 'UTF-8');
+    $password = htmlspecialchars($password, ENT_COMPAT, 'UTF-8');
+
+    // Normalize UTF-8
+    $username = $this->utf8_normalize_nfc($username);
+    $password = $this->utf8_normalize_nfc($password);
+
+    // Make sure multibyte characters are wellformed
+    if (!preg_match('//u', $username) || !preg_match('//u', $password)) {
+      $this->logger->error('Malformed unicode in username or password.', ['username' => $username, 'address' => $_SERVER['REMOTE_ADDR']]);
+      return [
+        'error' => 'Username or password is incorrect',
+      ];
     }
 
     // Clean up UTF-8 characters
