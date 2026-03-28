@@ -23,8 +23,9 @@ declare(strict_types=1);
 use League\Config\Configuration;
 
 require __DIR__ . '/../vendor/autoload.php';
-$app = (require __DIR__.'/../src/Bootstrap/container.php')();
-$config = $app->getContainer()->get(Configuration::class);
+$container = (require __DIR__.'/../src/Bootstrap/container.php')();
+$app = (require __DIR__.'/../src/Bootstrap/app.php')($container);
+$config = $container->get(Configuration::class);
 (require __DIR__.'/../src/Bootstrap/middleware.php')($app, $config);
 (require __DIR__.'/../src/Bootstrap/routes.php')($app, $config);
 $app->run();

@@ -20,22 +20,10 @@ declare(strict_types=1);
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use App\DatabaseHelper\GameServerHelper;
-use App\DatabaseHelper\SessionHelper;
-use App\DatabaseHelper\TokenHelper;
+use DI\Bridge\Slim\Bridge;
+use Di\Container;
 
-// Build the container
-require __DIR__ . '/vendor/autoload.php';
-$container = (require __DIR__.'/src/Bootstrap/container.php')();
-
-// Delete expired sessions
-$session_helper = $container->get(SessionHelper::class);
-$session_helper->delete_expired();
-
-// Delete stale tokens
-$token_helper = $container->get(TokenHelper::class);
-$token_helper->delete_stale();
-
-// Delete stale servers
-$gameserver_helper = $container->get(GameserverHelper::class);
-$gameserver_helper->delete_stale();
+return function (Container $container) {
+  // Create our application
+  return Bridge::create($container);
+};

@@ -20,7 +20,6 @@ declare(strict_types=1);
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use DI\Bridge\Slim\Bridge;
 use League\Config\Configuration;
 use Monolog\Handler\StreamHandler;
 use Monolog\Logger;
@@ -149,8 +148,5 @@ return function () {
       return $csrf;
     }
   ]);
-  $container = $builder->build();
-
-  // Create our application
-  return Bridge::create($container);
+  return $builder->build();
 };
