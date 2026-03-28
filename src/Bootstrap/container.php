@@ -48,28 +48,28 @@ return function () {
         'login' => Expect::structure([
           'max_failed_attempts' => Expect::int(5),
           'attempt_duration' => Expect::int(300),
-          'lockout_duration' => Expect::int(1800)
+          'lockout_duration' => Expect::int(1800),
         ]),
         'session' => Expect::structure([
           // Maximum session lifespan in hours (defaults to 90 days)
           'max_lifespan' => Expect::int(2160),
           // Maximum idle session time in hours (defaults to 16 days)
-          'max_idle' => Expect::int(384)
+          'max_idle' => Expect::int(384),
         ]),
         'phpbb' => Expect::structure([
           'root_path' => Expect::string()->required(),
           'database' => Expect::string()->required(),
-          'prefix' => Expect::string('phpbb_')
+          'prefix' => Expect::string('phpbb_'),
         ]),
         'redis' => Expect::structure([
           'host' => Expect::string('127.0.0.1'),
-          'password' => Expect::string()
+          'password' => Expect::string(),
         ]),
         'database' => Expect::structure([
           'host' => Expect::string('127.0.0.1'),
           'database' => Expect::string()->required(),
           'username' => Expect::string()->required(),
-          'password' => Expect::string()->required()
+          'password' => Expect::string()->required(),
         ]),
         // Display debug messages in the browser? Disable for production site
         'debug' => Expect::bool(false),
@@ -81,8 +81,8 @@ return function () {
           // Debug = 100, Info = 200, Notice = 250, Warning = 300, Error = 400, Critical = 500, Alert = 550, Emergency = 600
           'app_level' => Expect::int(200)->min(100)->max(600),
           // Log other errors (such as 404 errors or other fatal PHP errors) to error.log
-          'log_other_errors' => Expect::bool(false)
-        ])
+          'log_other_errors' => Expect::bool(false),
+        ]),
       ]);
 
       // Merge our configuration file information
@@ -95,7 +95,7 @@ return function () {
       return Twig::create(dirname(__DIR__, 2).'/views', [
         'cache' => dirname(__DIR__, 2).'/var/cache/twig',
         'auto_reload' => true,
-        'use_yield' => true
+        'use_yield' => true,
       ]);
     },
 
@@ -104,7 +104,7 @@ return function () {
       return new PDO("mysql:dbname={$c['database']};host={$c['host']}", $c['username'], $c['password'], [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES 'utf8mb4'"
+        PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES 'utf8mb4'",
       ]);
     },
 
@@ -147,7 +147,7 @@ return function () {
       $twig->getEnvironment()->addExtension(new \App\Misc\CsrfExtension($csrf));
 
       return $csrf;
-    }
+    },
   ]);
   return $builder->build();
 };

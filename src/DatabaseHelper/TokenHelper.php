@@ -56,7 +56,7 @@ class TokenHelper
     } catch (RandomException|PDOException $e) {
       $this->logger->error('Failed to generate authentication token', [
         'bzid' => $bzid,
-        'error' => $e->getMessage()
+        'error' => $e->getMessage(),
       ]);
       return null;
     }
@@ -109,7 +109,7 @@ class TokenHelper
     // Otherwise, use the old IPv4 comparison check if the token has one
     elseif ($player_ipv4 !== null && $player_ipv4 !== '' && $token['player_ipv4'] === $player_ipv4) {
       $this->logger->info('Successfully consumed token using player IPv4 match', [
-        'callsign' => $callsign
+        'callsign' => $callsign,
       ]);
       return true;
     }
@@ -122,7 +122,7 @@ class TokenHelper
         'token_host' => $token['server_host'],
         'actual_host' => $server_host,
         'token_port' => $token['server_port'],
-        'actual_port' => $server_port
+        'actual_port' => $server_port,
       ]);
       return false;
     }

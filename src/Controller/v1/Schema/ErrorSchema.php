@@ -38,7 +38,7 @@ class ErrorSchema
   {
     return json_encode([
       'type' => $type,
-      'errors' => $errors
+      'errors' => $errors,
     ]);
   }
 }

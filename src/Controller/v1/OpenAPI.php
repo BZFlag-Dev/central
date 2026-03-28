@@ -32,7 +32,7 @@ use OpenApi\Attributes as OA;
     termsOfService: 'https://www.bzflag.org/terms-of-use/'
   ),
   servers: [
-    new OA\Server(url: '/v1-dev')
+    new OA\Server(url: '/v1-dev'),
   ],
   tags: [
     new OA\Tag('Servers', description: 'Operations that deal with game servers'),
@@ -55,7 +55,7 @@ use OpenApi\Attributes as OA;
           new OA\Property(property: 'world_hash', description: 'Hash of the binary representation of the world, prefixed with the hash type', type: 'string', maxLength: 135, example: 'sha256:07123e1f482356c415f684407a3b8723e10b2cbbc0b8fcd6282c49d37c9c1abc'),
           new OA\Property(property: 'description', description: 'Public description of the server', type: 'string', maxLength: 128, example: 'Public HiX server'),
           new OA\Property(property: 'build', description: 'Build string of the server', type: 'string', maxLength: 255, example: '2.4.26.20230103-MAINT-linux-gnu-SDL2'),
-          new OA\Property(property: 'advert_groups', description: 'Array of group names to advertise to', type: 'array', items: new OA\Items(type: 'string', maxLength: 128), writeOnly: true, example: ["ORG.GROUP1", "ORG.GROUP2"])
+          new OA\Property(property: 'advert_groups', description: 'Array of group names to advertise to', type: 'array', items: new OA\Items(type: 'string', maxLength: 128), writeOnly: true, example: ["ORG.GROUP1", "ORG.GROUP2"]),
         ]
       ),
       new OA\Schema(
@@ -63,9 +63,9 @@ use OpenApi\Attributes as OA;
         properties: [
           new OA\Property(property: 'user_id', description: 'User ID number of the user the session belongs to', type: 'integer', example: 1006),
           new OA\Property(property: 'username', description: 'Name of the user', type: 'string', example: 'Son Goku'),
-          new OA\Property(property: 'session_expiration', description: 'UTC timestamp when the session will expire (though it may expire sooner if unused)', type: 'string', example: '2001-09-11 13:03:05')
+          new OA\Property(property: 'session_expiration', description: 'UTC timestamp when the session will expire (though it may expire sooner if unused)', type: 'string', example: '2001-09-11 13:03:05'),
         ]
-      )
+      ),
     ],
     responses: [
       new OA\Response(response: 200, description: "Success"),
@@ -75,15 +75,15 @@ use OpenApi\Attributes as OA;
       new OA\Response(response: 401, description: "Unauthorized"),
       new OA\Response(response: 403, description: "Forbidden"),
       new OA\Response(response: 404, description: "Not Found"),
-      new OA\Response(response: 429, description: "Too many requests")
+      new OA\Response(response: 429, description: "Too many requests"),
     ],
     requestBodies: [
       new OA\RequestBody(
         request: 'server',
         content: [
-          'application/json' => new OA\JsonContent(ref: '#/components/schemas/server')
+          'application/json' => new OA\JsonContent(ref: '#/components/schemas/server'),
         ]
-      )
+      ),
     ],
     securitySchemes: [
       new OA\SecurityScheme(
@@ -99,7 +99,7 @@ use OpenApi\Attributes as OA;
         description: 'User sessions are created with the ```POST /sessions``` endpoint and used to execute authenticated requests to the API',
         name: 'session-id',
         in: 'header'
-      )
+      ),
     ]
   )
 )]

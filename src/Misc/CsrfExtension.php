@@ -41,7 +41,7 @@ class CsrfExtension extends AbstractExtension implements GlobalsInterface
         'name' => $this->csrf->getTokenName(),
         'value_key' => $this->csrf->getTokenValueKey(),
         'value' => $this->csrf->getTokenValue(),
-      ]
+      ],
     ];
   }
 }

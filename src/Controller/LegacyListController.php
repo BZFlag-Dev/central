@@ -88,7 +88,7 @@ readonly class LegacyListController
     if (isset($authentication_attempt['error'])) {
       $this->logger->warning('Authentication failed', [
         'callsign' => $data['callsign'],
-        'error' => $authentication_attempt['error']
+        'error' => $authentication_attempt['error'],
       ]);
       return "NOTOK: {$authentication_attempt['error']}\n";
     }
@@ -391,7 +391,7 @@ readonly class LegacyListController
           $this->logger->debug('Hosting key not found.', [
             'hostname' => $hostname,
             'port' => $port,
-            'hosting_key' => $data['key']
+            'hosting_key' => $data['key'],
           ]);
           $errors[] = 'Invalid server authentication key.';
         } else {
@@ -401,7 +401,7 @@ readonly class LegacyListController
               'hostname' => $hostname,
               'key_hostname' => $hosting_key['host'],
               'port' => $port,
-              'hosting_key' => $data['key']
+              'hosting_key' => $data['key'],
             ]);
             $errors[] = "Host mismatch for server authentication key.";
           } else {
@@ -414,7 +414,7 @@ readonly class LegacyListController
                 'hostname' => $hostname,
                 'port' => $port,
                 'hosting_key' => $data['key'],
-                'user_id' => $hosting_key['user_id']
+                'user_id' => $hosting_key['user_id'],
               ]);
               $errors[] = 'Owner lookup failure';
             }
@@ -431,7 +431,7 @@ readonly class LegacyListController
         $this->logger->error($e->getMessage(), [
           'hostname' => $hostname,
           'port' => $port,
-          'protocol' => $data['version']
+          'protocol' => $data['version'],
         ]);
         $errors[] = 'Failed to connect to or verify running server.';
       }
@@ -457,7 +457,7 @@ readonly class LegacyListController
           $args = [
             'id' => $existing['id'],
             'game_info' => $data['gameinfo'],
-            'description' => $data['title']
+            'description' => $data['title'],
           ];
           if (isset($server_owner) && strlen($server_owner) > 0) {
             $args['owner'] = $server_owner;
@@ -474,7 +474,7 @@ readonly class LegacyListController
           'host' => $hostname,
           'port' => $port,
           'game_info' => $data['gameinfo'],
-          'description' => $data['title']
+          'description' => $data['title'],
         ];
         if (isset($hosting_key['id'])) {
           $args['hosting_key_id'] = $hosting_key['id'];
@@ -637,13 +637,13 @@ readonly class LegacyListController
     // Set/update the cookie
     setcookie('color_theme', $color_theme, [
       'expires' => time() + 90 * 86400,
-      'samesite' => 'Strict'
+      'samesite' => 'Strict',
     ]);
 
     // Set up some variables for the view
     $template_variables = [
       'color_theme' => $color_theme,
-      'return_url' => $data['url']
+      'return_url' => $data['url'],
     ];
 
     try {
@@ -828,7 +828,7 @@ readonly class LegacyListController
         $template_variables = [
           'bzid' => $_SESSION['listkeys_bzid'],
           'username' => $_SESSION['listkeys_username'],
-          'keys' => $keys
+          'keys' => $keys,
         ];
 
         // Handle the flash message, if one exists

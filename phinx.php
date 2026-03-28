@@ -30,8 +30,8 @@ $config = new League\Config\Configuration([
     'port' => Expect::int(3306),
     'database' => Expect::string()->required(),
     'username' => Expect::string()->required(),
-    'password' => Expect::string()
-  ])
+    'password' => Expect::string(),
+  ]),
 ]);
 $config->merge(require(__DIR__ . '/phinx-config.php'));
 
@@ -39,7 +39,7 @@ return
   [
     'paths' => [
       'migrations' => '%%PHINX_CONFIG_DIR%%/db/migrations',
-      'seeds' => '%%PHINX_CONFIG_DIR%%/db/seeds'
+      'seeds' => '%%PHINX_CONFIG_DIR%%/db/seeds',
     ],
     'environments' => [
       'default_migration_table' => 'phinxlog',
@@ -55,5 +55,5 @@ return
         'collation' => 'utf8mb4_unicode_ci',
       ],
     ],
-    'version_order' => 'creation'
+    'version_order' => 'creation',
   ];

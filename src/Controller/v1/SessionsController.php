@@ -46,14 +46,14 @@ readonly class SessionsController
           mediaType: 'application/x-www-form-urlencoded',
           schema: new OA\Schema(
             required: [
-              'username', 'password'
+              'username', 'password',
             ],
             properties: [
               new OA\Property(property: 'username', description: 'Registered user username', type: 'string'),
-              new OA\Property(property: 'password', description: 'Registered user password', type: 'string')
+              new OA\Property(property: 'password', description: 'Registered user password', type: 'string'),
             ]
           )
-        )
+        ),
       ]
     ),
     tags: ['Sessions'],
@@ -62,28 +62,28 @@ readonly class SessionsController
         'application/json' => new OA\JsonContent(
           allOf: [
             new OA\Schema(properties: [new OA\Property(property: 'session_id', description: 'The hexadecimal session ID', type: 'string', example: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef')]),
-            new OA\Schema(ref: '#/components/schemas/session')
+            new OA\Schema(ref: '#/components/schemas/session'),
           ]
-        )
+        ),
       ]),
       new OA\Response(response: 400, description: 'Bad request', content: [
         'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
           'type' => 'bad_request',
-          'errors' => ['Body must be application/x-www-form-urlencoded.']
-        ])
+          'errors' => ['Body must be application/x-www-form-urlencoded.'],
+        ]),
       ]),
       new OA\Response(response: 401, description: 'Authentication Failure', content: [
         'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
           'type' => 'unauthorized',
-          'errors' => ['Username or password is incorrect']
-        ])
+          'errors' => ['Username or password is incorrect'],
+        ]),
       ]),
       new OA\Response(response: 429, description: 'Rate Limit Exceeded', content: [
         'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
           'type' => 'rate_limit_exceeded',
-          'errors' => ['Too many failed login attempts. Temporarily locked out.']
-        ])
-      ])
+          'errors' => ['Too many failed login attempts. Temporarily locked out.'],
+        ]),
+      ]),
     ]
   )]
   public function create(Request $request, Response $response, SessionHelper $session_helper, PHPBBIntegration $phpbb): Response
@@ -140,24 +140,24 @@ readonly class SessionsController
     description: 'Get information about an authenticated session',
     tags: ['Sessions'],
     parameters: [
-      new OA\PathParameter(name: 'session_id', description: 'Session ID of an authenticated session', required: true, schema: new OA\Schema(type: 'string'))
+      new OA\PathParameter(name: 'session_id', description: 'Session ID of an authenticated session', required: true, schema: new OA\Schema(type: 'string')),
     ],
     responses: [
       new OA\Response(response: 200, description: 'Success', content: [
-        'application/json' => new OA\JsonContent(ref: '#/components/schemas/session')
+        'application/json' => new OA\JsonContent(ref: '#/components/schemas/session'),
       ]),
       new OA\Response(response: 404, description: 'Not Found', content: [
         'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
           'type' => 'not_found',
-          'errors' => ['Invalid session ID']
-        ])
+          'errors' => ['Invalid session ID'],
+        ]),
       ]),
       new OA\Response(response: 429, description: 'Rate Limit Exceeded', content: [
         'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
           'type' => 'rate_limit_exceeded',
-          'errors' => ['Too many failed session lookups. Temporarily locked out.']
-        ])
-      ])
+          'errors' => ['Too many failed session lookups. Temporarily locked out.'],
+        ]),
+      ]),
     ]
   )]
   public function get_one(Request $request, Response $response, SessionHelper $session_helper, string $session_id): Response
@@ -177,7 +177,7 @@ readonly class SessionsController
 
       // Log this failed attempt
       $this->logger->info('Attempted to fetch a session that did not exist.', [
-        'session_id' => $session_id
+        'session_id' => $session_id,
       ]);
 
       $response->getBody()->write(ErrorSchema::getJSON(ErrorType::NotFound, ['errors' => ['Invalid session ID']]));
@@ -191,22 +191,22 @@ readonly class SessionsController
     description: 'Delete an authenticated session, effectively logging out a user session.',
     tags: ['Sessions'],
     parameters: [
-      new OA\PathParameter(name: 'session_id', description: 'Session ID of an authenticated session', required: true, schema: new OA\Schema(type: 'string'))
+      new OA\PathParameter(name: 'session_id', description: 'Session ID of an authenticated session', required: true, schema: new OA\Schema(type: 'string')),
     ],
     responses: [
       new OA\Response(ref: '#/components/responses/204', response: 204),
       new OA\Response(response: 404, description: 'Not Found', content: [
         'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
           'type' => 'not_found',
-          'errors' => ['Invalid session ID']
-        ])
+          'errors' => ['Invalid session ID'],
+        ]),
       ]),
       new OA\Response(response: 429, description: 'Rate Limit Exceeded', content: [
         'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
           'type' => 'rate_limit_exceeded',
-          'errors' => ['Too many failed session deletions. Temporarily locked out.']
-        ])
-      ])
+          'errors' => ['Too many failed session deletions. Temporarily locked out.'],
+        ]),
+      ]),
     ]
   )]
   public function delete_one(Request $request, Response $response, SessionHelper $session_helper, string $session_id): Response
@@ -221,7 +221,7 @@ readonly class SessionsController
 
       // Log this failed attempt
       $this->logger->info('Attempted to delete a session that did not exist.', [
-        'session_id' => $session_id
+        'session_id' => $session_id,
       ]);
 
       $response->getBody()->write(ErrorSchema::getJSON(ErrorType::NotFound, ['errors' => ['Invalid session ID']]));

@@ -59,15 +59,15 @@ readonly class GameServersController
         name: 'hostname',
         description: 'Restrict the returned servers to those from a specific hostname.',
         schema: new OA\Schema(type: 'string')
-      )
+      ),
     ],
     responses: [
       new OA\Response(response: 200, description: 'Success', content: [
         'application/json' => new OA\JsonContent(
           type: 'array',
           items: new OA\Items(ref: '#/components/schemas/server')
-        )
-      ])
+        ),
+      ]),
     ]
   )]
   public function get_many(Request $request, Response $response, GameServerHelper $game_server_helper, SessionHelper $session_helper): Response
@@ -109,7 +109,7 @@ readonly class GameServersController
     tags: ['Servers'],
     parameters: [
       new OA\PathParameter(name: 'hostname', description: 'Public hostname of the server', required: true, schema: new OA\Schema(type: 'string')),
-      new OA\PathParameter(name: 'port', description: 'Public port of the server', required: true, schema: new OA\Schema(type: 'integer'))
+      new OA\PathParameter(name: 'port', description: 'Public port of the server', required: true, schema: new OA\Schema(type: 'integer')),
     ],
     responses: [
       new OA\Response(response: 200, description: 'Updated'),
@@ -119,15 +119,15 @@ readonly class GameServersController
           'type' => 'bad_request',
           'errors' => [
             'Invalid hostname in public address.',
-            'Invalid server description.'
-          ]
-        ])
+            'Invalid server description.',
+          ],
+        ]),
       ]),
       new OA\Response(response: 401, description: 'Authentication Failure', content: [
         'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
           'type' => 'unauthorized',
-          'errors' => ['Host mismatch for server key.']
-        ])
+          'errors' => ['Host mismatch for server key.'],
+        ]),
       ]),
     ]
   )]
@@ -226,7 +226,7 @@ readonly class GameServersController
       $this->logger->debug('Server key not found.', [
         'hostname' => $hostname,
         'port' => $port,
-        'server_key' => $server_key
+        'server_key' => $server_key,
       ]);
       $server_key_error = 'Invalid server authentication key.';
     } else {
@@ -236,7 +236,7 @@ readonly class GameServersController
           'hostname' => $hostname,
           'key_hostname' => $hosting_key['host'],
           'port' => $port,
-          'server_key' => $server_key
+          'server_key' => $server_key,
         ]);
         $server_key_error = 'Host mismatch for server key.';
       } else {
@@ -249,7 +249,7 @@ readonly class GameServersController
             'hostname' => $hostname,
             'port' => $port,
             'server_key' => $server_key,
-            'user_id' => $hosting_key['user_id']
+            'user_id' => $hosting_key['user_id'],
           ]);
           $server_key_error = 'Invalid server key.';
         }
@@ -284,7 +284,7 @@ readonly class GameServersController
         $this->logger->error($e->getMessage(), [
           'hostname' => $hostname,
           'port' => $port,
-          'protocol' => $data['protocol']
+          'protocol' => $data['protocol'],
         ]);
         $errors[] = 'Failed to connect to or verify running server.';
       }
@@ -309,7 +309,7 @@ readonly class GameServersController
             'game_info' => $data['game_info'],
             'description' => $data['description'],
             'owner' => $server_owner,
-            'world_hash' => $data['world_hash']
+            'world_hash' => $data['world_hash'],
           ];
           if (!$game_server_helper->update(...$args)) {
             $errors[] = 'Failed to update the server.';
@@ -326,7 +326,7 @@ readonly class GameServersController
           'hosting_key_id' => $hosting_key['id'],
           'owner' => $server_owner,
           'build' => $data['build'],
-          'world_hash' => $data['world_hash']
+          'world_hash' => $data['world_hash'],
         ];
         $server_id = $game_server_helper->create(...$args);
 
@@ -364,7 +364,7 @@ readonly class GameServersController
     // Otherwise, return an appropriate HTTP code and include the server owner name
     else {
       $response->getBody()->write(json_encode([
-        'owner' => $server_owner
+        'owner' => $server_owner,
       ]));
       return $response
         ->withStatus(($existing) ? 200 : 201)
@@ -379,7 +379,7 @@ readonly class GameServersController
     tags: ['Servers'],
     parameters: [
       new OA\PathParameter(name: 'hostname', description: 'Public hostname of the server', required: true, schema: new OA\Schema(type: 'string')),
-      new OA\PathParameter(name: 'port', description: 'Public port of the server', required: true, schema: new OA\Schema(type: 'integer'))
+      new OA\PathParameter(name: 'port', description: 'Public port of the server', required: true, schema: new OA\Schema(type: 'integer')),
     ],
     responses: [
       new OA\Response(response: 204, description: 'Deleted'),
@@ -388,17 +388,17 @@ readonly class GameServersController
           'type' => 'bad_request',
           'errors' => [
             'Missing server key.',
-          ]
-        ])
+          ],
+        ]),
       ]),
       new OA\Response(response: 404, description: 'Not Found', content: [
         'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
           'type' => 'not_found',
           'errors' => [
             'Server not found.',
-          ]
-        ])
-      ])
+          ],
+        ]),
+      ]),
     ]
   )]
   public function delete_one(Request $request, Response $response, GameServerHelper $game_server_helper, string $hostname, int $port): Response

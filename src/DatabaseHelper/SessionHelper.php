@@ -68,7 +68,7 @@ class SessionHelper
         'session_id' => $session_id,
         'user_id' => $user_id,
         'username' => $username,
-        'session_expiration' => $session_expiration
+        'session_expiration' => $session_expiration,
       ];
     } catch (RandomException|PDOException|Exception $e) {
       $this->logger->error('Failed to create a session', ['exception_type' => get_class($e), 'error' => $e->getMessage()]);

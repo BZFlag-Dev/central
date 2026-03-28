@@ -41,6 +41,7 @@ return $config->setRules([
   'single_blank_line_at_eof' => true,
   'no_whitespace_in_blank_line' => true,
   'no_trailing_whitespace' => true,
+  'trailing_comma_in_multiline' => ['after_heredoc' => false, 'elements' => ['arrays', 'match']],
   'no_alias_functions' => [ 'sets' => ['@internal']]
 ])
   ->setIndent("  ")

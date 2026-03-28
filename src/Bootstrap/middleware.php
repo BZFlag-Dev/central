@@ -54,7 +54,7 @@ return function (App $app, Configuration $config) {
     return $twig->render($response, 'http_error.html.twig', [
       'code' => 404,
       'short_description' => 'Page Not Found',
-      'message' => 'The requested URL was not found.'
+      'message' => 'The requested URL was not found.',
     ])->withStatus(404);
   });
 
@@ -64,7 +64,7 @@ return function (App $app, Configuration $config) {
     return $twig->render($response, 'http_error.html.twig', [
       'code' => 405,
       'short_description' => 'Method Not Allowed',
-      'message' => 'The requested method was not allowed for this URL.'
+      'message' => 'The requested method was not allowed for this URL.',
     ])->withStatus(405);
   });
 };

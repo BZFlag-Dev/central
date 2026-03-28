@@ -94,7 +94,7 @@ class PHPBBIntegration
       require($phpbb_root_path.'phpbb/config/config.'.$phpEx);
       $phpbb_config = new \phpbb\config\config([
         'rand_seed' => 0,
-        'rand_seed_last_update' => 0
+        'rand_seed_last_update' => 0,
       ]);
 
       // This is used by password drivers
@@ -145,7 +145,7 @@ class PHPBBIntegration
         'passwords.driver.bcrypt_2y',
         'passwords.driver.bcrypt',
         'passwords.driver.salted_md5',
-        'passwords.driver.phpass'
+        'passwords.driver.phpass',
       ];
       require($phpbb_root_path.'phpbb/passwords/manager.'.$phpEx);
       $passwords_manager = new \phpbb\passwords\manager($phpbb_config, $hashing_algorithms, $phpbb_password_helper, $defaults);
@@ -168,7 +168,7 @@ class PHPBBIntegration
     try {
       if ($this->redis->exists($key_lockout)) {
         return [
-          'error' => 'Too many failed login attempts. Temporarily locked out.'
+          'error' => 'Too many failed login attempts. Temporarily locked out.',
         ];
       }
     } catch (\RedisException $e) {
@@ -232,7 +232,7 @@ class PHPBBIntegration
 
         return [
           'bzid' => $user['user_id'],
-          'callsign' => $user['username']
+          'callsign' => $user['username'],
         ];
       }
       // User exists, invalid password
@@ -250,7 +250,7 @@ class PHPBBIntegration
             if ($this->redis->setnx($key_lockout, 1)) {
               $this->redis->expire($key_lockout, $this->login_config['lockout_duration']);
               return [
-                'error' => 'Too many failed login attempts. Temporarily locked out.'
+                'error' => 'Too many failed login attempts. Temporarily locked out.',
               ];
             }
           }
@@ -261,7 +261,7 @@ class PHPBBIntegration
     }
 
     return [
-      'error' => 'Username or password is incorrect'
+      'error' => 'Username or password is incorrect',
     ];
   }
 

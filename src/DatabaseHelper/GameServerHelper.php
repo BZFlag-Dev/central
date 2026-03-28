@@ -155,7 +155,7 @@ class GameServerHelper
       $this->logger->critical('Failed to lookup server', [
         'hostname' => $hostname,
         'port' => $port,
-        'error' => $e->getMessage()
+        'error' => $e->getMessage(),
       ]);
     }
 
@@ -179,7 +179,7 @@ class GameServerHelper
     } catch (PDOException $e) {
       $this->logger->critical('Failed to delete server or advert groups', [
         'id' => $id,
-        'error' => $e->getMessage()
+        'error' => $e->getMessage(),
       ]);
     }
 
