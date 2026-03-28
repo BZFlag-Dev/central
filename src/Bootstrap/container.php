@@ -94,7 +94,8 @@ return function () {
     Twig::class => function () {
       return Twig::create(dirname(__DIR__, 2).'/views', [
         'cache' => dirname(__DIR__, 2).'/var/cache/twig',
-        'auto_reload' => true
+        'auto_reload' => true,
+        'use_yield' => true
       ]);
     },
 
