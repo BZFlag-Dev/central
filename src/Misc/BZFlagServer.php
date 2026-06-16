@@ -58,7 +58,7 @@ class BZFlagServer
     $read_start = microtime(true);
     while (strlen($buffer) < 9) {
       // If we've exceeded our packet receive timeout, bail out
-      if (microtime(true) > $read_start + 4) {
+      if (microtime(true) > $read_start + 4.0) {
         throw new Exception("Timed out reading protocol version");
       }
 
