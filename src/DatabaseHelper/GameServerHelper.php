@@ -36,7 +36,7 @@ class GameServerHelper
     $this->server_stale_time = $config->get('server_stale_time');
   }
 
-  public function create(string $protocol, string $host, int $port, string $game_info, string $description, int $hosting_key_id = null, string $owner = null, string $build = null, string $world_hash = null): int|false
+  public function create(string $protocol, string $host, int $port, string $game_info, string $description, ?int $hosting_key_id = null, ?string $owner = null, ?string $build = null, ?string $world_hash = null): int|false
   {
     try {
       $statement = $this->pdo->prepare("INSERT INTO servers (host, port, hosting_key_id, protocol, game_info, description, owner, build, world_hash) VALUES (:host, :port, :hosting_key_id, :protocol, :game_info, :description, :owner, :build, :world_hash)");
@@ -74,7 +74,7 @@ class GameServerHelper
     }
   }
 
-  public function update(int $id, string $game_info, string $description, string $owner = null, string $world_hash = null): bool
+  public function update(int $id, string $game_info, string $description, ?string $owner = null, ?string $world_hash = null): bool
   {
     try {
       $statement = $this->pdo->prepare("UPDATE servers SET game_info = :game_info, description = :description, owner = :owner, world_hash = :world_hash, when_updated = NOW() WHERE id = :id");
@@ -92,7 +92,7 @@ class GameServerHelper
     return false;
   }
 
-  public function get_many(string $protocol = null, string $hostname = null, int $user_id = null): array|null
+  public function get_many(?string $protocol = null, ?string $hostname = null, ?int $user_id = null): array|null
   {
     // If we have a valid session, we can look up servers advertised to groups the user belongs to
     if ($user_id !== null) {

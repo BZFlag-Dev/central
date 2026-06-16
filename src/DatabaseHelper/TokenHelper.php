@@ -37,7 +37,7 @@ class TokenHelper
     $this->token_lifetime = $config->get('token_lifetime');
   }
 
-  public function create(int $bzid, string $player_ipv4 = null, string $server_host = null, int $server_port = null): string|null
+  public function create(int $bzid, ?string $player_ipv4 = null, ?string $server_host = null, ?int $server_port = null): string|null
   {
     try {
       // Generate a 20 character string for the authentication token. The client/server allocate 22 bytes, including
@@ -65,7 +65,7 @@ class TokenHelper
   private PDOStatement|false $select_token_statement = false;
   private PDOStatement|false $delete_token_statement = false;
 
-  public function validate(string $callsign, int $user_id, string $token_string, string $player_ipv4 = null, string $server_host = null, int $server_port = null): bool
+  public function validate(string $callsign, int $user_id, string $token_string, ?string $player_ipv4 = null, ?string $server_host = null, ?int $server_port = null): bool
   {
     // Prepare SQL statements, if they weren't already
     try {

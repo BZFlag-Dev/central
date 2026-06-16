@@ -33,7 +33,7 @@ class BZFlagServer
   /**
    * @throws Exception
    */
-  public function __construct(string $hostname_or_ip, int $port = 5154, string $expected_protocol = null)
+  public function __construct(string $hostname_or_ip, int $port = 5154, ?string $expected_protocol = null)
   {
     $this->socket = fsockopen($hostname_or_ip, $port, $errno, $errstr, 5);
     if (!$this->socket) {
