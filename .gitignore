@@ -1,8 +1,8 @@
 /.idea/
+/.phpunit.result.cache
+/.php-cs-fixer.cache
 /vendor/
-config.php
-phinx-config.php
-.php-cs-fixer.cache
 /public/css/bootstrap.min.css
 /public/css/bootstrap.min.css.map
-/.phpunit.result.cache
+/config.php
+/phinx-config.php
