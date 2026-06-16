@@ -21,7 +21,7 @@ declare(strict_types=1);
  */
 
 use DI\Bridge\Slim\Bridge;
-use Di\Container;
+use DI\Container;
 
 return function (Container $container) {
   // Create our application
