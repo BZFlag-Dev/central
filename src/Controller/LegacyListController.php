@@ -234,7 +234,7 @@ readonly class LegacyListController
       }
 
       // Validate port if provided
-      if (isset($matches[2]) && !Valid::serverPort($matches[2])) {
+      if (isset($matches[2]) && !Valid::serverPort((int)$matches[2])) {
         throw new Exception('Invalid port in public address.');
       }
 
