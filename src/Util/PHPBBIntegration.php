@@ -211,7 +211,7 @@ class PHPBBIntegration
     $username = $this->utf8_normalize_nfc($username);
     $password = $this->utf8_normalize_nfc($password);
 
-    // Make sure multibyte characters are wellformed
+    // Make sure multibyte characters are well-formed
     if (!preg_match('//u', $username) || !preg_match('//u', $password)) {
       $this->logger->error('Malformed unicode in username or password.', ['username' => $username, 'address' => $_SERVER['REMOTE_ADDR']]);
       return [
