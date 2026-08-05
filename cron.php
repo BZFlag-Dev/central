@@ -37,5 +37,5 @@ $token_helper = $container->get(TokenHelper::class);
 $token_helper->delete_stale();
 
 // Delete stale servers
-$gameserver_helper = $container->get(GameserverHelper::class);
-$gameserver_helper->delete_stale();
+$game_server_helper = $container->get(GameServerHelper::class);
+$game_server_helper->delete_stale();
