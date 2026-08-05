@@ -30,6 +30,7 @@ use App\Util\PHPBBIntegration;
 use App\Util\Valid;
 use ErrorException;
 use Exception;
+use League\Config\Configuration;
 use Monolog\Logger;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -604,7 +605,12 @@ readonly class LegacyListController
      */
     $twig = $this->app->getContainer()->get(Twig::class);
 
-    return $twig->render($response, 'legacy_usage.html.twig');
+    /**
+     * @var Configuration $config
+     */
+    $config = $this->app->getContainer()->get(Configuration::class);
+
+    return $twig->render($response, 'legacy_usage.html.twig', ['hostname' => $config->get('legacy_host')]);
   }
 
   public function weblogin(Request $request, Response $response, Twig $twig): Response

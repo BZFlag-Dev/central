@@ -98,7 +98,7 @@
 </div>
 
 <div class="container mt-3">
-    <h2>cURL Request:</h2>
+    <h2>curl Request:</h2>
     <div id="curl" class="font-monospace small user-select-all"></div>
 </div>
 
@@ -142,7 +142,7 @@
     }
 
     function updateCurl() {
-        curl.innerText = `curl 'https://my.bzflag.porteighty.org/db/' -H 'Content-Type: application/x-www-form-urlencoded' --data-raw '${getData().toString()}'`;
+        curl.innerText = `curl 'https://{{ hostname }}/db/' -H 'Content-Type: application/x-www-form-urlencoded' --data-raw '${getData().toString()}'`;
     }
     updateCurl();
     form.addEventListener('keyup', updateCurl);
