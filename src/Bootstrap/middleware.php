@@ -20,6 +20,7 @@ declare(strict_types=1);
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+use App\Middleware\GlobalHeaders;
 use League\Config\Configuration;
 use Monolog\Handler\StreamHandler;
 use Monolog\Logger;
@@ -34,6 +35,7 @@ use Slim\Views\TwigMiddleware;
 return function (App $app, Configuration $config) {
   // Add middleware
   $app->add(TwigMiddleware::createFromContainer($app, Twig::class));
+  $app->add(GlobalHeaders::class);
 
   // Set up error handling
   $log_config = $config->get('logging');
