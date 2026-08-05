@@ -480,7 +480,7 @@ readonly class LegacyListController
         if (isset($server_owner) && strlen($server_owner) > 0) {
           $args['owner'] = $server_owner;
         }
-        if ($data['build']) {
+        if (isset($data['build'])) {
           $args['build'] = $data['build'];
         }
 
