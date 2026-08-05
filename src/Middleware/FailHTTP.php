@@ -26,6 +26,9 @@ use Nyholm\Psr7\Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Server\RequestHandlerInterface as RequestHandler;
 
+// The purpose of this middleware is to reject access over HTTP instead of silently redirecting requests to HTTPS. This
+// method ensures that a developer knows they incorrectly used a http:// URL in their software and helps prevents any
+// information from accidentally being sent unencrypted.
 class FailHTTP
 {
   public function __invoke(Request $request, RequestHandler $handler): Response
