@@ -252,13 +252,10 @@ readonly class LegacyListController
     }
 
     $dns = dns_get_record($host, DNS_A | DNS_AAAA);
-    foreach ($dns as $record) {
-      if (($record['type'] === 'A' && $record['ip'] === $ip) || ($record['type'] === 'AAAA' && $record['ipv6'] === $ip)) {
-        return true;
-      }
+    if ($dns === false) {
+      return false;
     }
-
-    return false;
+    return array_any($dns, fn($record) => ($record['type'] === 'A' && $record['ip'] === $ip) || ($record['type'] === 'AAAA' && $record['ipv6'] === $ip));
   }
 
   private function list(Response $response, array $data): Response
