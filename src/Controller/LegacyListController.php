@@ -255,7 +255,7 @@ readonly class LegacyListController
     if ($dns === false) {
       return false;
     }
-    return array_any($dns, fn($record) => ($record['type'] === 'A' && $record['ip'] === $ip) || ($record['type'] === 'AAAA' && $record['ipv6'] === $ip));
+    return array_any($dns, fn ($record) => ($record['type'] === 'A' && $record['ip'] === $ip) || ($record['type'] === 'AAAA' && $record['ipv6'] === $ip));
   }
 
   private function list(Response $response, array $data): Response
