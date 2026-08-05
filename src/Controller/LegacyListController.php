@@ -742,6 +742,7 @@ readonly class LegacyListController
           $_SESSION['listkeys_bzid'] = $authentication_attempt['bzid'];
           $_SESSION['listkeys_username'] = $authentication_attempt['callsign'];
           $_SESSION['listkeys_session_created'] = time();
+          session_regenerate_id(true);
         }
       }
 
