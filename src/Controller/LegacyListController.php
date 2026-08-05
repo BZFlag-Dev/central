@@ -635,6 +635,7 @@ readonly class LegacyListController
     setcookie('color_theme', $color_theme, [
       'expires' => time() + 90 * 86400,
       'samesite' => 'Strict',
+      'secure' => true,
     ]);
 
     // Set up some variables for the view
