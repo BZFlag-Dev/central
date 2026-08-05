@@ -32,6 +32,12 @@ class GlobalHeaders
   public function __invoke(Request $request, RequestHandler $handler): Response
   {
     $response = $handler->handle($request);
+
+    // Add HSTS header to HTTPS requests
+    if ($request->getUri()->getScheme() === 'https') {
+      $response = $response->withHeader('Strict-Transport-Security', 'max-age=31536000');
+    }
+
     return $response
       // Security headers
       ->withHeader('X-Content-Type-Options', 'nosniff')
