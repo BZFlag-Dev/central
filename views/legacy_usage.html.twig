@@ -148,7 +148,9 @@
     form.addEventListener('keyup', updateCurl);
     form.addEventListener('change', updateCurl);
 
-    function hideOutput() {
+    function hideOutput(ev) {
+        if (ev && ev.type === 'keyup' && ev.key === 'Enter')
+            return;
         output_container.classList.toggle('d-none', true);
     }
 
