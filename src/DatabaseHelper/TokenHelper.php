@@ -62,42 +62,29 @@ class TokenHelper
     }
   }
 
-  private PDOStatement|false $select_token_statement = false;
-  private PDOStatement|false $delete_token_statement = false;
-
   public function validate(string $callsign, int $user_id, string $token_string, ?string $player_ipv4 = null, ?string $server_host = null, ?int $server_port = null): bool
   {
-    // Prepare SQL statements, if they weren't already
+    // Delete a matching non-expired token, returning the values we need
+    // NOTE: The cron job will take care of cleaning up expired tokens
     try {
-      if (!$this->select_token_statement) {
-        $this->select_token_statement = $this->pdo->prepare('SELECT player_ipv4, server_host, server_port FROM auth_tokens WHERE user_id = :user_id AND token = :token AND DATE_ADD(when_created, INTERVAL :token_lifetime SECOND) > NOW()');
-        $this->select_token_statement->bindValue('token_lifetime', $this->token_lifetime, PDO::PARAM_INT);
-      }
-      if (!$this->delete_token_statement) {
-        // TODO: Consider removing the user_id check since token is unique and we already validated the user_id with the select
-        $this->delete_token_statement = $this->pdo->prepare('DELETE FROM auth_tokens WHERE user_id = :user_id AND token = :token');
-      }
+      $statement = $this->pdo->prepare('DELETE FROM auth_tokens WHERE user_id = :user_id AND token = :token AND DATE_ADD(when_created, INTERVAL :token_lifetime SECOND) > NOW() RETURNING player_ipv4, server_host, server_port');
+      $statement->bindValue('user_id', $user_id, PDO::PARAM_INT);
+      $statement->bindValue('token', $token_string);
+      $statement->bindValue('token_lifetime', $this->token_lifetime, PDO::PARAM_INT);
+      $statement->execute();
+      $token = $statement->fetch();
     } catch (PDOException $e) {
       $this->logger->critical('Failed to prepare one or more statements for processing tokens.', ['error' => $e->getMessage()]);
       return false;
     }
 
-    // Fetch the token information
-    $this->select_token_statement->bindValue('user_id', $user_id, PDO::PARAM_INT);
-    $this->select_token_statement->bindValue('token', $token_string);
-    $this->select_token_statement->execute();
-    $token = $this->select_token_statement->fetch();
-
+    // Check if we found a token
     if (!$token) {
-      $this->logger->error('Authentication token not found', ['token' => $token_string]);
+      $this->logger->error('Authentication token not found', ['user_id' => $user_id, 'token' => $token_string]);
       return false;
     }
 
-    // Delete the token so it can't be used again
-    $this->delete_token_statement->bindValue('user_id', $user_id, PDO::PARAM_INT);
-    $this->delete_token_statement->bindValue('token', $token_string);
-    $this->delete_token_statement->execute();
-
+    // If the server host/port was stored with this token, compare the requested host/port with the actual host/port
     if ($token['server_host'] !== null && $token['server_host'] !== '' && $server_host !== null && $token['server_host'] === $server_host && $token['server_port'] === $server_port) {
       $this->logger->info('Successfully consumed token using host/port match', [
         'callsign' => $callsign,
@@ -106,14 +93,14 @@ class TokenHelper
       ]);
       return true;
     }
-    // Otherwise, use the old IPv4 comparison check if the token has one
+    // For legacy clients/servers, we fall back to the old IPv4 comparison check if the token has one
     elseif ($player_ipv4 !== null && $player_ipv4 !== '' && $token['player_ipv4'] === $player_ipv4) {
       $this->logger->info('Successfully consumed token using player IPv4 match', [
         'callsign' => $callsign,
       ]);
       return true;
     }
-    // Otherwise, fail the authentication attempt
+    // If neither method was successful, fail the authentication attempt
     else {
       $this->logger->error('Authentication token mismatch', [
         'callsign' => $callsign,
