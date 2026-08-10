@@ -20,7 +20,7 @@ declare(strict_types=1);
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-namespace App\Misc;
+namespace App\View;
 
 use Slim\Csrf\Guard;
 use Twig\Extension\AbstractExtension;
