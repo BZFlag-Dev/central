@@ -26,12 +26,11 @@ use League\Config\Configuration;
 use Monolog\Logger;
 use PDO;
 use PDOException;
-use PDOStatement;
 use Random\RandomException;
 
 class TokenHelper
 {
-  private int $token_lifetime;
+  private readonly int $token_lifetime;
   public function __construct(private readonly PDO $pdo, Configuration $config, private readonly Logger $logger)
   {
     $this->token_lifetime = $config->get('token_lifetime');
