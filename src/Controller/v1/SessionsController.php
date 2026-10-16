@@ -27,7 +27,7 @@ use App\Controller\v1\Schema\ErrorType;
 use App\DatabaseHelper\SessionHelper;
 use App\Util\PHPBBIntegration;
 use Monolog\Logger;
-use OpenApi\Attributes as OA;
+use OpenApi\Spec as OAS;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -37,20 +37,20 @@ readonly class SessionsController
   {
   }
 
-  #[OA\Post(
+  #[OAS\Operation\Post(
     path: '/sessions',
     description: 'Create an authenticated session',
-    requestBody: new OA\RequestBody(
+    requestBody: new OAS\RequestBody(
       content: [
-        new OA\MediaType(
+        new OAS\MediaType(
           mediaType: 'application/x-www-form-urlencoded',
-          schema: new OA\Schema(
+          schema: new OAS\Schema(
             required: [
               'username', 'password',
             ],
             properties: [
-              new OA\Property(property: 'username', description: 'Registered user username', type: 'string'),
-              new OA\Property(property: 'password', description: 'Registered user password', type: 'string'),
+              new OAS\Property(property: 'username', schema: new OAS\Schema(description: 'Registered user username', type: 'string')),
+              new OAS\Property(property: 'password', schema: new OAS\Schema(description: 'Registered user password', type: 'string')),
             ]
           )
         ),
@@ -58,28 +58,28 @@ readonly class SessionsController
     ),
     tags: ['Sessions'],
     responses: [
-      new OA\Response(response: 200, description: 'Success', content: [
-        'application/json' => new OA\JsonContent(
-          allOf: [
-            new OA\Schema(properties: [new OA\Property(property: 'session_id', description: 'The hexadecimal session ID', type: 'string', example: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef')]),
-            new OA\Schema(ref: '#/components/schemas/session'),
-          ]
+      new OAS\Response(response: 200, description: 'Success', content: [
+        'application/json' => new OAS\MediaType\Json(
+          schema: new OAS\Schema(allOf: [
+            new OAS\Schema(properties: [new OAS\Property(property: 'session_id', schema: new OAS\Schema(description: 'The hexadecimal session ID', type: 'string', example: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'))]),
+            new OAS\Schema(ref: '#/components/schemas/session'),
+          ])
         ),
       ]),
-      new OA\Response(response: 400, description: 'Bad request', content: [
-        'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
+      new OAS\Response(response: 400, description: 'Bad request', content: [
+        'application/json' => new OAS\MediaType\Json(ref: '#/components/schemas/error', example: [
           'type' => 'bad_request',
           'errors' => ['Body must be application/x-www-form-urlencoded.'],
         ]),
       ]),
-      new OA\Response(response: 401, description: 'Authentication Failure', content: [
-        'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
+      new OAS\Response(response: 401, description: 'Authentication Failure', content: [
+        'application/json' => new OAS\MediaType\Json(ref: '#/components/schemas/error', example: [
           'type' => 'unauthorized',
           'errors' => ['Username or password is incorrect'],
         ]),
       ]),
-      new OA\Response(response: 429, description: 'Rate Limit Exceeded', content: [
-        'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
+      new OAS\Response(response: 429, description: 'Rate Limit Exceeded', content: [
+        'application/json' => new OAS\MediaType\Json(ref: '#/components/schemas/error', example: [
           'type' => 'rate_limit_exceeded',
           'errors' => ['Too many failed login attempts. Temporarily locked out.'],
         ]),
@@ -135,25 +135,25 @@ readonly class SessionsController
     }
   }
 
-  #[OA\Get(
+  #[OAS\Operation\Get(
     path: '/sessions/{session_id}',
     description: 'Get information about an authenticated session',
     tags: ['Sessions'],
     parameters: [
-      new OA\PathParameter(name: 'session_id', description: 'Session ID of an authenticated session', required: true, schema: new OA\Schema(type: 'string')),
+      new OAS\Parameter\Path(name: 'session_id', description: 'Session ID of an authenticated session', required: true, schema: new OAS\Schema(type: 'string')),
     ],
     responses: [
-      new OA\Response(response: 200, description: 'Success', content: [
-        'application/json' => new OA\JsonContent(ref: '#/components/schemas/session'),
+      new OAS\Response(response: 200, description: 'Success', content: [
+        'application/json' => new OAS\MediaType\Json(ref: '#/components/schemas/session'),
       ]),
-      new OA\Response(response: 404, description: 'Not Found', content: [
-        'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
+      new OAS\Response(response: 404, description: 'Not Found', content: [
+        'application/json' => new OAS\MediaType\Json(ref: '#/components/schemas/error', example: [
           'type' => 'not_found',
           'errors' => ['Invalid session ID'],
         ]),
       ]),
-      new OA\Response(response: 429, description: 'Rate Limit Exceeded', content: [
-        'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
+      new OAS\Response(response: 429, description: 'Rate Limit Exceeded', content: [
+        'application/json' => new OAS\MediaType\Json(ref: '#/components/schemas/error', example: [
           'type' => 'rate_limit_exceeded',
           'errors' => ['Too many failed session lookups. Temporarily locked out.'],
         ]),
@@ -186,23 +186,23 @@ readonly class SessionsController
     }
   }
 
-  #[OA\Delete(
+  #[OAS\Operation\Delete(
     path: '/sessions/{session_id}',
     description: 'Delete an authenticated session, effectively logging out a user session.',
     tags: ['Sessions'],
     parameters: [
-      new OA\PathParameter(name: 'session_id', description: 'Session ID of an authenticated session', required: true, schema: new OA\Schema(type: 'string')),
+      new OAS\Parameter\Path(name: 'session_id', description: 'Session ID of an authenticated session', required: true, schema: new OAS\Schema(type: 'string')),
     ],
     responses: [
-      new OA\Response(ref: '#/components/responses/204', response: 204),
-      new OA\Response(response: 404, description: 'Not Found', content: [
-        'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
+      new OAS\Response(ref: '#/components/responses/204', response: 204),
+      new OAS\Response(response: 404, description: 'Not Found', content: [
+        'application/json' => new OAS\MediaType\Json(ref: '#/components/schemas/error', example: [
           'type' => 'not_found',
           'errors' => ['Invalid session ID'],
         ]),
       ]),
-      new OA\Response(response: 429, description: 'Rate Limit Exceeded', content: [
-        'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
+      new OAS\Response(response: 429, description: 'Rate Limit Exceeded', content: [
+        'application/json' => new OAS\MediaType\Json(ref: '#/components/schemas/error', example: [
           'type' => 'rate_limit_exceeded',
           'errors' => ['Too many failed session deletions. Temporarily locked out.'],
         ]),

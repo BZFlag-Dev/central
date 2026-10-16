@@ -32,7 +32,7 @@ use App\Util\PHPBBIntegration;
 use App\Util\Valid;
 use Exception;
 use Monolog\Logger;
-use OpenApi\Attributes as OA;
+use OpenApi\Spec as OAS;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -43,29 +43,29 @@ readonly class GameServersController
 
   }
 
-  #[OA\Get(
+  #[OAS\Operation\Get(
     path: '/servers',
     description: 'Gets public servers and, if a valid user session is provided, any privately advertised servers that the user has access to.',
-    security: [['user_session' => []]],
+    security: [new OAS\Security\Requirement(scheme: 'user_session')],
     tags: ['Servers'],
     parameters: [
-      new OA\QueryParameter(
+      new OAS\Parameter\Query(
         name: 'protocol',
         description: 'Restrict results to servers running a specific protocol version.',
-        schema: new OA\Schema(type: 'string'),
+        schema: new OAS\Schema(type: 'string'),
         example: 'BZFS0221'
       ),
-      new OA\QueryParameter(
+      new OAS\Parameter\Query(
         name: 'hostname',
         description: 'Restrict the returned servers to those from a specific hostname.',
-        schema: new OA\Schema(type: 'string')
+        schema: new OAS\Schema(type: 'string')
       ),
     ],
     responses: [
-      new OA\Response(response: 200, description: 'Success', content: [
-        'application/json' => new OA\JsonContent(
+      new OAS\Response(response: 200, description: 'Success', content: [
+        'application/json' => new OAS\MediaType\Json(
           type: 'array',
-          items: new OA\Items(ref: '#/components/schemas/server')
+          items: new OAS\Schema\Items(ref: '#/components/schemas/server')
         ),
       ]),
     ]
@@ -101,21 +101,21 @@ readonly class GameServersController
     return $response->withStatus(500);
   }
 
-  #[OA\Put(
+  #[OAS\Operation\Put(
     path: '/servers/{hostname}/{port}',
     description: 'Create or update one server.',
-    security: [['server_key' => []]],
-    requestBody: new OA\RequestBody(ref: '#/components/requestBodies/server'),
+    security: [new OAS\Security\Requirement(scheme: 'server_key')],
+    requestBody: new OAS\RequestBody(ref: '#/components/requestBodies/server'),
     tags: ['Servers'],
     parameters: [
-      new OA\PathParameter(name: 'hostname', description: 'Public hostname of the server', required: true, schema: new OA\Schema(type: 'string')),
-      new OA\PathParameter(name: 'port', description: 'Public port of the server', required: true, schema: new OA\Schema(type: 'integer')),
+      new OAS\Parameter\Path(name: 'hostname', description: 'Public hostname of the server', required: true, schema: new OAS\Schema(type: 'string')),
+      new OAS\Parameter\Path(name: 'port', description: 'Public port of the server', required: true, schema: new OAS\Schema(type: 'integer')),
     ],
     responses: [
-      new OA\Response(response: 200, description: 'Updated'),
-      new OA\Response(response: 201, description: 'Created'),
-      new OA\Response(response: 400, description: 'Bad Request', content: [
-        'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
+      new OAS\Response(response: 200, description: 'Updated'),
+      new OAS\Response(response: 201, description: 'Created'),
+      new OAS\Response(response: 400, description: 'Bad Request', content: [
+        'application/json' => new OAS\MediaType\Json(ref: '#/components/schemas/error', example: [
           'type' => 'bad_request',
           'errors' => [
             'Invalid hostname in public address.',
@@ -123,8 +123,8 @@ readonly class GameServersController
           ],
         ]),
       ]),
-      new OA\Response(response: 401, description: 'Authentication Failure', content: [
-        'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
+      new OAS\Response(response: 401, description: 'Authentication Failure', content: [
+        'application/json' => new OAS\MediaType\Json(ref: '#/components/schemas/error', example: [
           'type' => 'unauthorized',
           'errors' => ['Host mismatch for server key.'],
         ]),
@@ -372,27 +372,27 @@ readonly class GameServersController
     }
   }
 
-  #[OA\Delete(
+  #[OAS\Operation\Delete(
     path: '/servers/{hostname}/{port}',
     description: 'Remove one server from the server list.',
-    security: [['server_key' => []]],
+    security: [new OAS\Security\Requirement(scheme: 'server_key')],
     tags: ['Servers'],
     parameters: [
-      new OA\PathParameter(name: 'hostname', description: 'Public hostname of the server', required: true, schema: new OA\Schema(type: 'string')),
-      new OA\PathParameter(name: 'port', description: 'Public port of the server', required: true, schema: new OA\Schema(type: 'integer')),
+      new OAS\Parameter\Path(name: 'hostname', description: 'Public hostname of the server', required: true, schema: new OAS\Schema(type: 'string')),
+      new OAS\Parameter\Path(name: 'port', description: 'Public port of the server', required: true, schema: new OAS\Schema(type: 'integer')),
     ],
     responses: [
-      new OA\Response(response: 204, description: 'Deleted'),
-      new OA\Response(response: 400, description: 'Bad Request', content: [
-        'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
+      new OAS\Response(response: 204, description: 'Deleted'),
+      new OAS\Response(response: 400, description: 'Bad Request', content: [
+        'application/json' => new OAS\MediaType\Json(ref: '#/components/schemas/error', example: [
           'type' => 'bad_request',
           'errors' => [
             'Missing server key.',
           ],
         ]),
       ]),
-      new OA\Response(response: 404, description: 'Not Found', content: [
-        'application/json' => new OA\JsonContent(ref: '#/components/schemas/error', example: [
+      new OAS\Response(response: 404, description: 'Not Found', content: [
+        'application/json' => new OAS\MediaType\Json(ref: '#/components/schemas/error', example: [
           'type' => 'not_found',
           'errors' => [
             'Server not found.',

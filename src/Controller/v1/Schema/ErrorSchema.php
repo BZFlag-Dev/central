@@ -22,14 +22,14 @@ declare(strict_types=1);
 
 namespace App\Controller\v1\Schema;
 
-use OpenApi\Attributes as OA;
+use OpenApi\Spec as OAS;
 
-#[OA\Schema(
+#[OAS\Schema(
   schema: 'error',
   required: ['type', 'code', 'message'],
   properties: [
-    new OA\Property(property: 'type', description: 'The type (or category) of the error', type: 'string', enum: ErrorType::class),
-    new OA\Property(property: 'errors', description: 'A array of human-readable details about the error response.', type: 'array', items: new OA\Items(type: 'string')),
+    new OAS\Property(property: 'type', schema: new OAS\Schema(description: 'The type (or category) of the error', type: 'string', enum: [ErrorType::class])),
+    new OAS\Property(property: 'errors', schema: new OAS\Schema(description: 'A array of human-readable details about the error response.', type: 'array', items: new OAS\Schema\Items(type: 'string'))),
   ]
 )]
 class ErrorSchema
