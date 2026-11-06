@@ -35,8 +35,8 @@
         ]
     },
     "require-dev": {
-        "zircote/swagger-php": "^6.0",
-        "phpunit/phpunit": "^11.2",
+        "zircote/swagger-php": "^7.1",
+        "phpunit/phpunit": "^13.4",
         "rector/rector": "^2.7"
     }
 }
