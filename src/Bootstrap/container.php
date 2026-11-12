@@ -144,7 +144,7 @@ return function () {
       }, persistentTokenMode: true);
 
       // Add Twig extension for the CSRF token
-      $twig->getEnvironment()->addExtension(new \App\View\Twig\Extensions\CsrfExtension($csrf));
+      $twig->getEnvironment()->addExtension(new \App\View\CsrfExtension($csrf));
 
       return $csrf;
     },
