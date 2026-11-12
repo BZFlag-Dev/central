@@ -84,7 +84,7 @@ class TokenHelper
     }
 
     // If the server host/port was stored with this token, compare the requested host/port with the actual host/port
-    if ($token['server_host'] !== null && $token['server_host'] !== '' && $server_host !== null && $token['server_host'] === $server_host && $token['server_port'] === $server_port) {
+    if (!empty($token['server_host']) && !empty($server_host) && $token['server_host'] === $server_host && (int)$token['server_port'] === $server_port) {
       $this->logger->info('Successfully consumed token using host/port match', [
         'callsign' => $callsign,
         'host' => $server_host,
