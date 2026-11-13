@@ -426,7 +426,7 @@ readonly class GameServersController
       $server_key = $request->getHeader('Server-Key')[0];
 
       // If we found the server and the key matches, delete it
-      if ($server !== null && $server['server_key'] === $server_key && $game_server_helper->delete($server['id'])) {
+      if ($server !== null && hash_equals($server['key_string'], $server_key) && $game_server_helper->delete($server['id'])) {
         return $response->withStatus(204);
       }
 
